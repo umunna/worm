@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Woormhole-Simulation</title>
+</head>
+
+<body>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: black;
+            overflow: hidden;
+        }
+
+        .wormhole {
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: 5px solid transparent;
+            box-shadow: 0 0 20px green;
+            animation: swirl 4s infinite linear;
+        }
+
+        .wormhole.left {
+            left: 10%;
+        }
+
+        .wormhole.right {
+            right: 10%;
+        }
+
+        @keyframes swirl {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+    <div class="wormhole left"></div>
+    <div class="wormhole right"></div>
+</body>
+
+</html>
