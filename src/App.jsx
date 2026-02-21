@@ -6,20 +6,21 @@ import Probe from './components/Probe';
 import {
   findShortestPath,
   calculateTraversalTime,
+  calculateTravelEnergy,
   applyTraversalLoad,
   cooldownNodes,
   getNodes,
   getEdges,
 } from './lib/nodeNetwork';
 
+// Physics constants
 const INITIAL_RADIUS = 10.0;
 const DECAY_RATE = 0.05;
 const STABILIZE_FLUX = 0.3;
 const TRANSIT_STRESS = 2.0;
-const ANTIMATTER_INTAKE_RATE = 0.15; // Auto-harvested once wormhole is open
+const ANTIMATTER_INTAKE_RATE = 0.15;
 
 function App() {
-  // Wormhole physics
   const [radius] = useState(INITIAL_RADIUS);
   const [curvature, setCurvature] = useState(0.0);
   const [stabilized, setStabilized] = useState(false);
@@ -28,31 +29,30 @@ function App() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [stabilityHistory, setStabilityHistory] = useState([]);
 
-  // Transit state
   const [transitActive, setTransitActive] = useState(false);
   const [probePhase, setProbePhase] = useState('idle');
 
   // Node network
   const [nodeStates, setNodeStates] = useState({});
   const [sourceNode, setSourceNode] = useState('A');
-  const [destNode, setDestNode] = useState('D');
+  const [destNode, setDestNode] = useState('F');
   const [activePath, setActivePath] = useState([]);
   const [lastPathResult, setLastPathResult] = useState(null);
+  const [lastTravelEnergy, setLastTravelEnergy] = useState(null);
 
   const nodes = getNodes();
   const edges = getEdges();
 
-  // Physics simulation - auto energy injection once wormhole opens
+  // Physics loop: once wormhole opens, antimatter is sucked in from atmosphere
+  // creating curvature for stabilization. No manual recharge.
   useEffect(() => {
     if (isCollapsed) return;
 
-    const tickRate = 50;
     const interval = setInterval(() => {
-      // Energy: consumed by stabilizer, auto-replenished by antimatter intake when open
       setEnergyLevel(tank => {
         let change = 0;
-        if (stabilized) change -= 0.2; // Stabilizer consumption
-        // Auto antimatter intake once wormhole is active (no manual recharge)
+        if (stabilized) change -= 0.2;
+        // Antimatter auto-intake once wormhole is active
         if (gateStatus === 'online' || gateStatus === 'igniting') {
           change += ANTIMATTER_INTAKE_RATE;
         }
@@ -61,14 +61,12 @@ function App() {
         return newLevel;
       });
 
-      // Curvature dynamics - antimatter creates curvature for stabilization
       setCurvature(c => {
-        let delta = DECAY_RATE; // Natural gravitational decay
-        if (stabilized) delta -= STABILIZE_FLUX; // Stabilizer pushes back
-        if (transitActive) delta += TRANSIT_STRESS * 0.1; // Transit stress
+        let delta = DECAY_RATE;
+        if (stabilized) delta -= STABILIZE_FLUX;
+        if (transitActive) delta += TRANSIT_STRESS * 0.1;
 
         let newC = Math.max(0, c + delta);
-
         if (newC >= radius) {
           setIsCollapsed(true);
           newC = radius;
@@ -79,22 +77,18 @@ function App() {
           if (next.length > 50) next.shift();
           return next;
         });
-
         return newC;
       });
 
-      // Cooldown node heat and load over time
       setNodeStates(prev => cooldownNodes(prev));
-    }, tickRate);
+    }, 50);
 
     return () => clearInterval(interval);
   }, [stabilized, transitActive, radius, isCollapsed, gateStatus]);
 
-  // Open the wormhole - energy starts being injected, antimatter is sucked in
   const handleOpenWormhole = useCallback(() => {
     if (energyLevel > 0 && !stabilized) {
       setStabilized(true);
-
       if (gateStatus === 'offline') {
         setGateStatus('igniting');
         setCurvature(radius * 0.9);
@@ -105,28 +99,26 @@ function App() {
     }
   }, [energyLevel, stabilized, gateStatus, radius]);
 
-  // Send probe through the node network using shortest path
   const handleSendProbe = useCallback(() => {
     if (isCollapsed || probePhase !== 'idle' || gateStatus !== 'online') return;
     if (sourceNode === destNode) return;
 
-    // Find shortest path considering node heat/load
     const pathResult = findShortestPath(sourceNode, destNode, nodeStates);
     if (pathResult.path.length === 0) return;
 
-    setLastPathResult(pathResult);
-    setActivePath(pathResult.path);
+    // Calculate travel energy from PDF formula: E_total = TE_km * D
+    const ratio = curvature / radius;
+    const travelEnergy = calculateTravelEnergy(pathResult.distanceKm, ratio);
 
-    // Apply load to nodes on the path
+    setLastPathResult(pathResult);
+    setLastTravelEnergy(travelEnergy);
+    setActivePath(pathResult.path);
     setNodeStates(prev => applyTraversalLoad(pathResult.path, prev));
 
-    // Calculate traversal time with curvature dilation
-    const ratio = curvature / radius;
     const totalTime = calculateTraversalTime(pathResult, ratio);
-
-    const ENTRY_DURATION = 1000;
-    const EXIT_DURATION = 1000;
-    const traverseDuration = Math.min(10000, totalTime);
+    const ENTRY_DURATION = 800;
+    const EXIT_DURATION = 800;
+    const traverseDuration = Math.min(8000, totalTime);
 
     setProbePhase('entering');
     setTransitActive(true);
@@ -137,22 +129,15 @@ function App() {
       setProbePhase('idle');
       setTransitActive(false);
       setActivePath([]);
-      setLastPathResult(null);
     }, ENTRY_DURATION + traverseDuration + EXIT_DURATION);
   }, [isCollapsed, probePhase, gateStatus, sourceNode, destNode, nodeStates, curvature, radius]);
 
-  // Node selection for routing
   const handleSelectNode = useCallback((nodeId) => {
-    if (transitActive) return; // Can't change route during transit
-    // If clicking the source, swap with dest
+    if (transitActive) return;
     if (nodeId === sourceNode) {
       setSourceNode(destNode);
       setDestNode(sourceNode);
-    } else if (nodeId === destNode) {
-      setSourceNode(destNode);
-      setDestNode(sourceNode);
     } else {
-      // Set as new destination
       setDestNode(nodeId);
     }
   }, [transitActive, sourceNode, destNode]);
@@ -168,6 +153,7 @@ function App() {
     setNodeStates({});
     setActivePath([]);
     setLastPathResult(null);
+    setLastTravelEnergy(null);
   }, []);
 
   const constrictionRatio = isCollapsed ? 1 : curvature / radius;
@@ -186,15 +172,19 @@ function App() {
           isCollapsed={isCollapsed}
           phase={wormholePhase}
           side="entry"
-          label={`Gate ${sourceNode}`}
+          label={`Node ${sourceNode}`}
         />
+
+        <div className="wormhole-tunnel">
+          <div className="tunnel-line" data-active={transitActive || gateStatus === 'online'} />
+        </div>
 
         <Wormhole
           constriction={constrictionRatio}
           isCollapsed={isCollapsed}
           phase={wormholePhase}
           side="exit"
-          label={`Gate ${destNode}`}
+          label={`Node ${destNode}`}
         />
       </div>
 
@@ -210,7 +200,6 @@ function App() {
         onOpenWormhole={handleOpenWormhole}
         onSendProbe={handleSendProbe}
         onReset={handleReset}
-        // Node network props
         nodes={nodes}
         edges={edges}
         nodeStates={nodeStates}
@@ -219,6 +208,7 @@ function App() {
         destNode={destNode}
         onSelectNode={handleSelectNode}
         lastPathResult={lastPathResult}
+        lastTravelEnergy={lastTravelEnergy}
       />
     </div>
   );

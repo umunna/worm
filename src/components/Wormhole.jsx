@@ -7,18 +7,19 @@ const Wormhole = ({ constriction = 0, isCollapsed, phase = 'offline', side = 'en
   const timeRef = useRef(0);
   const [canvasSize, setCanvasSize] = useState(320);
 
-  // Responsive sizing
+  // Responsive sizing - measure container, clamp to reasonable range
   useEffect(() => {
     const updateSize = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        const s = Math.min(rect.width, rect.height, 400);
-        setCanvasSize(Math.max(160, s));
+        const available = Math.min(rect.width, rect.height, 400);
+        setCanvasSize(Math.max(100, available));
       }
     };
     updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    const ro = new ResizeObserver(updateSize);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
   }, []);
 
   useEffect(() => {

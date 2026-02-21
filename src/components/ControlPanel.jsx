@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import NodeMap from './NodeMap';
+import { D_GATE, TE_KM, NODES_PER_GATE, NODE_SPACING_KM } from '../lib/nodeNetwork';
 
 const ControlPanel = ({
   radius,
@@ -21,6 +22,7 @@ const ControlPanel = ({
   destNode,
   onSelectNode,
   lastPathResult,
+  lastTravelEnergy,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const ratio = curvature / radius;
@@ -39,13 +41,13 @@ const ControlPanel = ({
 
   return (
     <div className="control-panel">
-      {/* Header - always visible */}
+      {/* Header */}
       <div className="cp-header">
         <h3 className="cp-title">Controls</h3>
         <div className="cp-header-right">
           <span
             className="cp-status"
-            style={{ color: isStable && !isCollapsed ? '#00ff88' : '#ff4444', borderColor: 'currentColor' }}
+            style={{ color: isStable && !isCollapsed ? '#00ff88' : '#ff4444' }}
           >
             {isCollapsed ? 'COLLAPSED' : isOnline ? 'STABLE' : gateStatus === 'igniting' ? 'OPENING' : 'OFFLINE'}
           </span>
@@ -55,7 +57,7 @@ const ControlPanel = ({
         </div>
       </div>
 
-      {/* Energy bar - always visible */}
+      {/* Energy bar */}
       <div className="cp-energy-section">
         <div className="cp-energy-labels">
           <span>
@@ -74,16 +76,13 @@ const ControlPanel = ({
             style={{
               width: `${energyLevel}%`,
               background: energyLevel < 20 ? '#ff4444' : '#00ccff',
-              boxShadow:
-                gateStatus === 'online'
-                  ? '0 0 8px rgba(0, 204, 255, 0.6)'
-                  : 'none',
+              boxShadow: gateStatus === 'online' ? '0 0 8px rgba(0, 204, 255, 0.6)' : 'none',
             }}
           />
         </div>
       </div>
 
-      {/* Action buttons - always visible */}
+      {/* Buttons */}
       <div className="cp-actions">
         <button
           className="cp-btn cp-btn-primary"
@@ -104,14 +103,36 @@ const ControlPanel = ({
           onClick={onSendProbe}
           disabled={isCollapsed || transitActive || gateStatus !== 'online'}
         >
-          {transitActive ? 'IN TRANSIT...' : `SEND ${sourceNode} to ${destNode}`}
+          {transitActive ? 'IN TRANSIT...' : `SEND ${sourceNode} \u2192 ${destNode}`}
         </button>
       </div>
 
-      {/* Expanded section: stats + node map */}
+      {/* Travel energy readout (shows after a send) */}
+      {lastTravelEnergy && (
+        <div className="cp-travel-energy">
+          <div className="cp-te-row">
+            <span className="cp-te-label">Distance</span>
+            <span className="cp-te-value">{lastTravelEnergy.distanceKm} km</span>
+          </div>
+          <div className="cp-te-row">
+            <span className="cp-te-label">Travel Energy</span>
+            <span className="cp-te-value">{lastTravelEnergy.energyMJ.toFixed(0)} MJ</span>
+          </div>
+          <div className="cp-te-row">
+            <span className="cp-te-label">Household Equiv.</span>
+            <span className="cp-te-value">{lastTravelEnergy.householdDays.toFixed(1)} days</span>
+          </div>
+          <div className="cp-te-row">
+            <span className="cp-te-label">Dilation</span>
+            <span className="cp-te-value">{lastTravelEnergy.dilationFactor.toFixed(2)}x</span>
+          </div>
+        </div>
+      )}
+
+      {/* Expanded section */}
       {expanded && (
         <div className="cp-expanded">
-          {/* Stability graph */}
+          {/* Graph */}
           <div className="cp-graph">
             <span className="cp-graph-limit">Collapse Limit</span>
             <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="cp-graph-svg">
@@ -125,7 +146,7 @@ const ControlPanel = ({
             </svg>
           </div>
 
-          {/* Stats grid */}
+          {/* Stats */}
           <div className="cp-stats">
             <div className="cp-stat">
               <span className="cp-stat-label">Opening</span>
@@ -139,16 +160,27 @@ const ControlPanel = ({
             </div>
             <div className="cp-stat">
               <span className="cp-stat-label">Route</span>
-              <span className="cp-stat-value">{sourceNode} &rarr; {destNode}</span>
+              <span className="cp-stat-value">{sourceNode} {'\u2192'} {destNode}</span>
             </div>
             <div className="cp-stat">
-              <span className="cp-stat-label">Travel</span>
-              <span className="cp-stat-value">
-                {lastPathResult
-                  ? `${lastPathResult.hops} hops`
-                  : `${findPreviewHops()} hops`}
-              </span>
+              <span className="cp-stat-label">Path Hops</span>
+              <span className="cp-stat-value">{lastPathResult ? lastPathResult.hops : '-'}</span>
             </div>
+            <div className="cp-stat">
+              <span className="cp-stat-label">Gate Coverage</span>
+              <span className="cp-stat-value">{D_GATE} km</span>
+            </div>
+            <div className="cp-stat">
+              <span className="cp-stat-label">TE Constant</span>
+              <span className="cp-stat-value">{TE_KM} MJ/km</span>
+            </div>
+          </div>
+
+          {/* Network topology info */}
+          <div className="cp-topology-info">
+            <span>{NODES_PER_GATE} nodes/gate</span>
+            <span>{NODE_SPACING_KM} km spacing</span>
+            <span>D = {D_GATE} km</span>
           </div>
 
           {/* Node Map */}
@@ -179,18 +211,6 @@ const ControlPanel = ({
       )}
     </div>
   );
-
-  function findPreviewHops() {
-    // Quick preview of hop count without full path calc
-    if (sourceNode === destNode) return 0;
-    // Simple estimate: direct neighbors = 1, through hub = 2
-    const directEdge = edges.find(
-      (e) =>
-        (e.from === sourceNode && e.to === destNode) ||
-        (e.from === destNode && e.to === sourceNode)
-    );
-    return directEdge ? 1 : 2;
-  }
 };
 
 export default ControlPanel;

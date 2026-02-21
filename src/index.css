@@ -33,7 +33,6 @@ body {
   overflow: hidden;
 }
 
-/* ---- App Root ---- */
 .app-root {
   width: 100%;
   height: 100%;
@@ -43,13 +42,13 @@ body {
 /* ---- Title ---- */
 h1 {
   position: absolute;
-  top: 20px;
+  top: 16px;
   left: 0;
   right: 0;
   text-align: center;
-  font-size: clamp(1rem, 3vw, 2rem);
+  font-size: clamp(0.75rem, 2.5vw, 1.8rem);
   font-weight: 700;
-  letter-spacing: 0.3rem;
+  letter-spacing: 0.2rem;
   text-transform: uppercase;
   background: linear-gradient(90deg, #4488cc, #88ccff);
   -webkit-background-clip: text;
@@ -59,19 +58,21 @@ h1 {
   pointer-events: none;
   filter: drop-shadow(0 0 8px rgba(68, 136, 204, 0.4));
   margin: 0;
-  padding: 0 16px;
+  padding: 0 12px;
 }
 
-/* ---- Wormhole Container ---- */
+/* ---- Wormhole Container: ALWAYS HORIZONTAL ---- */
 .wormhole-container {
   display: flex;
-  justify-content: space-around;
+  flex-direction: row;
+  justify-content: center;
   align-items: center;
   width: 100%;
   height: 100%;
   position: relative;
   z-index: 10;
-  padding: 60px 3% 0;
+  padding: 50px 2% 0;
+  gap: 0;
 }
 
 .wormhole-wrapper {
@@ -79,18 +80,48 @@ h1 {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
   max-width: 400px;
 }
 
 .wormhole-label {
-  font-size: 0.65rem;
+  font-size: clamp(0.5rem, 1.5vw, 0.7rem);
   color: rgba(255, 255, 255, 0.4);
-  letter-spacing: 0.15em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   text-align: center;
+  white-space: nowrap;
+}
+
+/* ---- Tunnel connector between wormholes ---- */
+.wormhole-tunnel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(20px, 8vw, 80px);
+  flex-shrink: 0;
+}
+
+.tunnel-line {
+  width: 100%;
+  height: 2px;
+  background: rgba(80, 140, 200, 0.15);
+  border-radius: 1px;
+  transition: all 0.5s ease;
+}
+
+.tunnel-line[data-active="true"] {
+  background: linear-gradient(90deg, #0088ff, #00ffcc, #0088ff);
+  box-shadow: 0 0 8px rgba(0, 200, 255, 0.4);
+  height: 2px;
+  animation: tunnel-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes tunnel-pulse {
+  0%, 100% { opacity: 0.6; box-shadow: 0 0 4px rgba(0, 200, 255, 0.2); }
+  50% { opacity: 1; box-shadow: 0 0 12px rgba(0, 200, 255, 0.6); }
 }
 
 /* ---- Control Panel ---- */
@@ -103,15 +134,15 @@ h1 {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 12px 16px;
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  padding: 10px 12px;
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
   z-index: 200;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   font-family: monospace;
-  max-height: 75vh;
-  max-height: 75dvh;
+  max-height: 70vh;
+  max-height: 70dvh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -124,7 +155,7 @@ h1 {
 
 .cp-title {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   color: #fff;
   font-family: 'Inter', sans-serif;
 }
@@ -132,14 +163,14 @@ h1 {
 .cp-header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .cp-status {
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   border: 1px solid currentColor;
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
   font-family: monospace;
 }
 
@@ -147,9 +178,9 @@ h1 {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.6);
-  padding: 2px 10px;
+  padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   cursor: pointer;
   font-family: monospace;
 }
@@ -159,24 +190,24 @@ h1 {
   color: #fff;
 }
 
-/* Energy Section */
+/* Energy */
 .cp-energy-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .cp-energy-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: #aaa;
 }
 
 .cp-intake-badge {
   margin-left: 6px;
   color: #00ccff;
-  font-size: 0.6rem;
+  font-size: 0.55rem;
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -197,20 +228,21 @@ h1 {
 /* Action Buttons */
 .cp-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .cp-btn {
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   font-weight: 700;
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   cursor: pointer;
   transition: all 0.2s;
   font-family: monospace;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .cp-btn:disabled {
@@ -244,9 +276,41 @@ h1 {
   background: transparent;
   border: 1px solid #ff3333;
   color: #ff3333;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   font-family: monospace;
+  font-weight: 700;
+  font-size: 0.65rem;
+}
+
+/* Travel Energy readout */
+.cp-travel-energy {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  background: rgba(0, 100, 150, 0.1);
+  border: 1px solid rgba(0, 200, 255, 0.15);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.cp-te-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+}
+
+.cp-te-label {
+  font-size: 0.55rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cp-te-value {
+  font-size: 0.7rem;
+  color: #00ccff;
   font-weight: 700;
 }
 
@@ -254,11 +318,11 @@ h1 {
 .cp-expanded {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .cp-graph {
-  height: 50px;
+  height: 45px;
   background: #111;
   border-radius: 4px;
   position: relative;
@@ -269,9 +333,9 @@ h1 {
 .cp-graph-limit {
   position: absolute;
   top: 2px;
-  right: 5px;
+  right: 4px;
   color: #ff4444;
-  font-size: 0.55rem;
+  font-size: 0.5rem;
 }
 
 .cp-graph-svg {
@@ -281,80 +345,94 @@ h1 {
 
 .cp-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
   background: rgba(255, 255, 255, 0.03);
-  padding: 8px;
+  padding: 6px;
   border-radius: 6px;
 }
 
 .cp-stat {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .cp-stat-label {
-  font-size: 0.6rem;
+  font-size: 0.5rem;
   color: #888;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
 }
 
 .cp-stat-value {
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   color: #fff;
   font-weight: 700;
+}
+
+/* Topology info line */
+.cp-topology-info {
+  display: flex;
+  gap: 12px;
+  font-size: 0.55rem;
+  color: #666;
+  font-family: monospace;
+  padding: 2px 0;
 }
 
 /* Node Map */
 .cp-nodemap {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .cp-nodemap-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   color: #aaa;
 }
 
 .cp-nodemap-hint {
-  font-size: 0.55rem;
+  font-size: 0.5rem;
   color: #666;
 }
 
 .cp-nodemap-canvas {
-  height: 120px;
+  height: 140px;
   background: rgba(255, 255, 255, 0.02);
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   overflow: hidden;
 }
 
-/* Probe Animations */
-@keyframes probe-enter {
+/* ---- Probe Animations (horizontal only) ---- */
+@keyframes probe-enter-h {
   0% {
-    transform: translate(-150px, -50%) scale(1);
+    left: 15%;
     opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
   }
   100% {
-    transform: translate(0, -50%) scale(0);
+    left: 42%;
     opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
   }
 }
 
-@keyframes probe-exit {
+@keyframes probe-exit-h {
   0% {
-    transform: translate(0, -50%) scale(0);
+    left: 58%;
     opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2);
   }
   100% {
-    transform: translate(150px, -50%) scale(1);
+    left: 85%;
     opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
   }
 }
 
@@ -363,7 +441,7 @@ h1 {
   50% { opacity: 1; }
 }
 
-/* ---- RESPONSIVE: Tablets ---- */
+/* ---- RESPONSIVE: Tablet+ ---- */
 @media (min-width: 640px) {
   .control-panel {
     position: fixed;
@@ -371,47 +449,68 @@ h1 {
     left: 50%;
     right: auto;
     transform: translateX(-50%);
-    width: 460px;
+    width: 500px;
     max-width: calc(100% - 32px);
-    border-radius: 16px;
+    border-radius: 14px;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: 12px;
+    padding: 14px 16px;
+    padding-bottom: 14px;
     max-height: 60vh;
   }
 
-  .wormhole-container {
-    padding-bottom: 0;
+  .cp-btn {
+    padding: 10px 14px;
+    font-size: 0.7rem;
+  }
+
+  .cp-stats {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .cp-travel-energy {
+    grid-template-columns: 1fr 1fr;
   }
 
   .cp-nodemap-canvas {
-    height: 150px;
+    height: 160px;
+  }
+
+  .wormhole-container {
+    padding: 60px 5% 0;
   }
 }
 
-/* ---- RESPONSIVE: Mobile small ---- */
-@media (max-width: 639px) {
+/* ---- RESPONSIVE: Small mobile (< 400px) ---- */
+@media (max-width: 400px) {
+  h1 {
+    top: 8px;
+    letter-spacing: 0.1rem;
+  }
+
   .wormhole-container {
-    flex-direction: column;
-    justify-content: flex-start;
-    gap: 10px;
-    padding-top: 55px;
-    padding-bottom: 200px;
-    overflow-y: auto;
+    padding: 40px 1% 0;
   }
 
   .wormhole-wrapper canvas {
-    max-width: min(200px, 45vw) !important;
-    max-height: min(200px, 45vw) !important;
+    max-width: 120px !important;
+    max-height: 120px !important;
   }
 
-  h1 {
-    top: 12px;
-    letter-spacing: 0.15rem;
+  .wormhole-tunnel {
+    width: 16px;
   }
 
   .cp-btn {
-    padding: 8px;
-    font-size: 0.65rem;
+    padding: 7px 6px;
+    font-size: 0.58rem;
+  }
+
+  .cp-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cp-travel-energy {
+    grid-template-columns: 1fr;
   }
 
   .cp-nodemap-canvas {
@@ -419,17 +518,27 @@ h1 {
   }
 }
 
-/* ---- RESPONSIVE: Mobile landscape ---- */
-@media (max-height: 500px) {
-  .wormhole-container {
-    flex-direction: row;
-    padding-top: 45px;
-    padding-bottom: 160px;
-  }
-
+/* ---- RESPONSIVE: Medium mobile (400-639px) ---- */
+@media (min-width: 401px) and (max-width: 639px) {
   .wormhole-wrapper canvas {
     max-width: 160px !important;
     max-height: 160px !important;
+  }
+
+  .wormhole-tunnel {
+    width: 24px;
+  }
+}
+
+/* ---- RESPONSIVE: Landscape short ---- */
+@media (max-height: 500px) {
+  .wormhole-container {
+    padding-top: 36px;
+  }
+
+  .wormhole-wrapper canvas {
+    max-width: 140px !important;
+    max-height: 140px !important;
   }
 
   .control-panel {
@@ -438,7 +547,7 @@ h1 {
   }
 
   h1 {
-    top: 8px;
-    font-size: 0.85rem;
+    top: 6px;
+    font-size: 0.75rem;
   }
 }
