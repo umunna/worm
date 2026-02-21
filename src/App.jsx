@@ -3,7 +3,6 @@ import Wormhole from './components/Wormhole';
 import StarField from './components/StarField';
 import ControlPanel from './components/ControlPanel';
 import Probe from './components/Probe';
-// Gate component no longer needed - wormholes are self-contained
 
 const INITIAL_RADIUS = 10.0;
 const DECAY_RATE = 0.05;
@@ -25,13 +24,11 @@ function App() {
 
   const [stabilityHistory, setStabilityHistory] = useState([]);
 
-  // Physics simulation loop
   useEffect(() => {
     if (isCollapsed) return;
 
     const tickRate = 50;
     const interval = setInterval(() => {
-      // Energy management
       setEnergyLevel(tank => {
         let change = 0;
         if (stabilized) change -= 0.2;
