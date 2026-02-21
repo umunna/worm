@@ -34,8 +34,8 @@ function App() {
 
   // Node network
   const [nodeStates, setNodeStates] = useState({});
-  const [sourceNode, setSourceNode] = useState('A');
-  const [destNode, setDestNode] = useState('F');
+  const [sourceNode, setSourceNode] = useState('N1');
+  const [destNode, setDestNode] = useState('N5');
   const [activePath, setActivePath] = useState([]);
   const [lastPathResult, setLastPathResult] = useState(null);
   const [lastTravelEnergy, setLastTravelEnergy] = useState(null);
