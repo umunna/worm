@@ -3,105 +3,76 @@ import Wormhole from './components/Wormhole';
 import StarField from './components/StarField';
 import ControlPanel from './components/ControlPanel';
 import Probe from './components/Probe';
+// Gate component no longer needed - wormholes are self-contained
 
-// Morris-Thorne Physics Constants
-const INITIAL_RADIUS = 10.0; // r_0
-const B_GROWTH_RATE = 0.05; // Gravity trying to close the throat
-const EXOTIC_FLUX = 0.3; // Negative energy density pushing b(r) down
-const MATTER_FLUX = 2.0; // Positive energy density increasing b(r) during transit
+const INITIAL_RADIUS = 10.0;
+const DECAY_RATE = 0.05;
+const STABILIZE_FLUX = 0.3;
+const TRANSIT_STRESS = 2.0;
 
 function App() {
-  // r(t): Throat Radius
   const [radius, setRadius] = useState(INITIAL_RADIUS);
-  // b(r): Shape Function value at the throat (b(r_0))
-  const [shapeFunc, setShapeFunc] = useState(0.0);
+  const [curvature, setCurvature] = useState(0.0);
 
-  const [exoticMatter, setExoticMatter] = useState(false);
-  const [exoticTank, setExoticTank] = useState(50.0); // Start half full to encourage harvesting
-  const [harvesting, setHarvesting] = useState(false); // Casimir Collector state
+  const [stabilized, setStabilized] = useState(false);
+  const [energyLevel, setEnergyLevel] = useState(50.0);
+  const [harvesting, setHarvesting] = useState(false);
+  const [gateStatus, setGateStatus] = useState('offline');
 
-  const [transitActive, setTransitActive] = useState(false); // Physics impact state
-  const [probePhase, setProbePhase] = useState('idle'); // Visual state: idle, entering, traversing, exiting
+  const [transitActive, setTransitActive] = useState(false);
+  const [probePhase, setProbePhase] = useState('idle');
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // Data history for graph
-  const [metricHistory, setMetricHistory] = useState([]);
+  const [stabilityHistory, setStabilityHistory] = useState([]);
 
-  // Relativistic Physics Loop
+  // Physics simulation loop
   useEffect(() => {
     if (isCollapsed) return;
 
     const tickRate = 50;
     const interval = setInterval(() => {
-      // Resource Management
-      setExoticTank(tank => {
+      // Energy management
+      setEnergyLevel(tank => {
         let change = 0;
-
-        // Consumption
-        if (exoticMatter) {
-          change -= 0.2;
-        }
-
-        // Harvesting (Regeneration)
-        if (harvesting) {
-          change += 0.1; // Net loss if both active (-0.1), Gain if only harvesting (+0.1)
-        }
-
+        if (stabilized) change -= 0.2;
+        if (harvesting) change += 0.1;
         const newLevel = Math.max(0, Math.min(100, tank + change));
-
-        if (newLevel <= 0 && exoticMatter) {
-          setExoticMatter(false); // Forced cutoff
-        }
-
+        if (newLevel <= 0 && stabilized) setStabilized(false);
         return newLevel;
       });
 
-      setShapeFunc(b => {
-        let delta_b = B_GROWTH_RATE; // Natural gravitational tendency to close
+      setCurvature(c => {
+        let delta = DECAY_RATE;
+        if (stabilized) delta -= STABILIZE_FLUX;
+        if (transitActive) delta += TRANSIT_STRESS * 0.1;
 
-        if (exoticMatter) {
-          delta_b -= EXOTIC_FLUX; // Negative energy reduces curvature
-        }
+        let newC = Math.max(0, c + delta);
 
-        if (transitActive) {
-          delta_b += MATTER_FLUX * 0.1; // Mass adds positive curvature
-        }
-
-        // Apply change
-        let new_b = Math.max(0, b + delta_b);
-
-        // Traversable Constraint: b(r) < r
-        // If b(r) >= r, the throat pinches off (horizon forms)
-        if (new_b >= radius) {
+        if (newC >= radius) {
           setIsCollapsed(true);
-          new_b = radius; // Cap at collapse
+          newC = radius;
         }
 
-        // Update history (keep last 50 points)
-        setMetricHistory(prev => {
-          const next = [...prev, new_b];
+        setStabilityHistory(prev => {
+          const next = [...prev, newC];
           if (next.length > 50) next.shift();
           return next;
         });
 
-        return new_b;
+        return newC;
       });
-
     }, tickRate);
 
     return () => clearInterval(interval);
-  }, [exoticMatter, transitActive, radius, isCollapsed]);
+  }, [stabilized, transitActive, radius, isCollapsed, harvesting]);
 
-  const handleInjectExotic = () => {
-    if (exoticTank > 0) {
-      setExoticMatter(true);
+  const handleActivateStabilizer = () => {
+    if (energyLevel > 0) {
+      setStabilized(true);
 
-      // Ignition Logic
       if (gateStatus === 'offline') {
         setGateStatus('igniting');
-        setShapeFunc(radius * 0.9); // Start nearly closed, needing immediate stabilization
-
-        // Sequence: 3 seconds to stabilize
+        setCurvature(radius * 0.9);
         setTimeout(() => {
           setGateStatus(current => current === 'igniting' ? 'online' : current);
         }, 3000);
@@ -113,54 +84,40 @@ function App() {
     setHarvesting(prev => !prev);
   };
 
-  const handleSendMatter = () => {
+  const handleSendProbe = () => {
     if (isCollapsed || probePhase !== 'idle') return;
 
     const ENTRY_DURATION = 1000;
     const EXIT_DURATION = 1000;
 
-    // Time Dilation: As b(r) approaches r, traversal takes longer.
-    // Formula: T = T_0 / (1 - b/r)
-    const ratio = shapeFunc / radius;
+    const ratio = curvature / radius;
     const dilationFactor = 1 / Math.max(0.01, 1 - ratio);
-    const traverseDuration = Math.min(10000, 1000 * dilationFactor); // Cap at 10s for sanity
+    const traverseDuration = Math.min(10000, 1000 * dilationFactor);
 
-    // Start Sequence
     setProbePhase('entering');
-    setTransitActive(true); // Physics starts impacted immediately upon entry
+    setTransitActive(true);
 
-    // Sequence Timing
+    setTimeout(() => setProbePhase('traversing'), ENTRY_DURATION);
+    setTimeout(() => setProbePhase('exiting'), ENTRY_DURATION + traverseDuration);
     setTimeout(() => {
-      setProbePhase('traversing'); // Probe hidden in tunnel
-    }, ENTRY_DURATION);
-
-    setTimeout(() => {
-      setProbePhase('exiting'); // Probe pops out
-    }, ENTRY_DURATION + traverseDuration);
-
-    setTimeout(() => {
-      setProbePhase('idle'); // Done
-      setTransitActive(false); // Physics impact ends
+      setProbePhase('idle');
+      setTransitActive(false);
     }, ENTRY_DURATION + traverseDuration + EXIT_DURATION);
   };
 
   const handleReset = () => {
     setIsCollapsed(false);
-    setShapeFunc(0.0);
+    setCurvature(0.0);
     setRadius(INITIAL_RADIUS);
-    setExoticMatter(false);
+    setStabilized(false);
     setTransitActive(false);
     setProbePhase('idle');
-    setExoticTank(50.0);
+    setEnergyLevel(50.0);
     setHarvesting(false);
     setGateStatus('offline');
   };
 
-  // derived state for visualization
-  // ratio = b(r)/r. 0 = safe, 1 = collapse
-  const constrictionRatio = isCollapsed ? 1 : shapeFunc / radius;
-
-  // Decide what phase to tell components
+  const constrictionRatio = isCollapsed ? 1 : curvature / radius;
   const wormholePhase = isCollapsed ? 'collapsed' : gateStatus;
 
   return (
@@ -171,37 +128,30 @@ function App() {
       <div className="wormhole-container">
         <Probe phase={probePhase} />
 
-        {/* Left Wormhole */}
-        <Gate>
-          <Wormhole
-            color={isCollapsed ? '#ff0000' : "#08CB00"}
-            size={`min(${280 * (1 - constrictionRatio * 0.5)}px, 40vw)`}
-            constriction={constrictionRatio}
-            isCollapsed={isCollapsed}
-            phase={wormholePhase}
-          />
-        </Gate>
+        <Wormhole
+          constriction={constrictionRatio}
+          isCollapsed={isCollapsed}
+          phase={wormholePhase}
+          side="entry"
+        />
 
-        <Gate>
-          <Wormhole
-            color={isCollapsed ? '#ff0000' : "#08CB00"}
-            size={`min(${280 * (1 - constrictionRatio * 0.5)}px, 40vw)`}
-            constriction={constrictionRatio}
-            isCollapsed={isCollapsed}
-            phase={wormholePhase}
-          />
-        </Gate>
+        <Wormhole
+          constriction={constrictionRatio}
+          isCollapsed={isCollapsed}
+          phase={wormholePhase}
+          side="exit"
+        />
       </div>
 
       <ControlPanel
         radius={radius}
-        shapeFunc={shapeFunc}
-        exoticMatter={exoticMatter}
-        exoticTank={exoticTank}
-        metricHistory={metricHistory}
+        curvature={curvature}
+        stabilized={stabilized}
+        energyLevel={energyLevel}
+        stabilityHistory={stabilityHistory}
         harvesting={harvesting}
-        onInjectExotic={handleInjectExotic}
-        onSendMatter={handleSendMatter}
+        onActivateStabilizer={handleActivateStabilizer}
+        onSendProbe={handleSendProbe}
         onToggleHarvest={handleToggleHarvest}
         onReset={handleReset}
         isCollapsed={isCollapsed}

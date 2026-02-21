@@ -1,68 +1,265 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 
-const Wormhole = ({ color = 'green', size = '200px', constriction = 0, isCollapsed, phase = 'stable', style: propStyle }) => {
-  // Phase: 'offline', 'igniting', 'stable', 'collapsed'
+const Wormhole = ({ constriction = 0, isCollapsed, phase = 'offline', side = 'entry' }) => {
+  const canvasRef = useRef(null);
+  const animRef = useRef(null);
+  const timeRef = useRef(0);
 
-  if (phase === 'offline') {
-    return <div className="wormhole-offline" style={{ width: 10, height: 10, background: 'transparent' }} />;
-  }
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
 
-  // Visuals
-  // As constriction increases, the wormhole gets more "nervous" (shakes)
-  const shakeAmount = isCollapsed ? 0 : Math.pow(constriction, 2) * 5;
-  const shake = `translate(${(Math.random() - 0.5) * shakeAmount}px, ${(Math.random() - 0.5) * shakeAmount}px)`;
+    const SIZE = 320;
+    canvas.width = SIZE;
+    canvas.height = SIZE;
 
-  const mainColor = isCollapsed ? '#ff0000' : color;
+    const cx = SIZE / 2;
+    const cy = SIZE / 2;
 
-  // As it constricts, the "event horizon" glow gets tighter
-  const glowSize = isCollapsed ? 50 : 20 + (1 - constriction) * 10;
+    // Torus parameters
+    const R = SIZE * 0.3;  // Major radius (center of tube to center of torus)
+    const r = SIZE * 0.12; // Minor radius (tube radius)
 
-  let animation = isCollapsed ? 'none' : `swirl ${Math.max(0.5, 4 * (1 - constriction))}s infinite linear`;
-  let transform = `${propStyle?.transform || ''} ${shake}`;
-  let opacity = 1;
-  let borderRadius = '50%';
-  let border = `2px solid ${isCollapsed ? 'red' : 'transparent'}`;
-  let boxShadow = `0 0 ${glowSize}px ${mainColor}, inset 0 0 ${glowSize * 2}px ${mainColor}`;
+    const render = () => {
+      timeRef.current += 0.015;
+      const t = timeRef.current;
 
-  // Ignition Overrides
-  if (phase === 'igniting') {
-    animation = 'spin-expand 3s ease-out forwards';
-    boxShadow = `0 0 50px ${mainColor}`;
-    border = `5px solid ${mainColor}`;
-    // Logic: It starts as a dot (scale 0 in keyframe) and spins out to a ring
-  }
+      ctx.clearRect(0, 0, SIZE, SIZE);
 
-  const style = {
-    ...propStyle,
-    width: size,
-    height: size,
-    // When collapsed, it's a solid singularity. When open, it's a hole.
-    backgroundColor: (isCollapsed || phase === 'igniting') ? 'transparent' : 'black',
-    boxShadow,
-    border,
-    borderTopColor: phase === 'igniting' ? mainColor : mainColor,
-    borderRightColor: phase === 'igniting' ? mainColor : `rgba(255,255,255, ${0.1 + constriction * 0.5})`,
-    borderRadius,
-    animation,
-    transform,
-    transition: 'width 0.2s, height 0.2s, box-shadow 0.1s',
-  };
+      if (phase === 'offline') {
+        // Draw dormant ring
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, R * 0.3, R * 0.15, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(80, 120, 180, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        animRef.current = requestAnimationFrame(render);
+        return;
+      }
+
+      const ignitionProgress = phase === 'igniting' ? Math.min(1, t * 0.33) : 1;
+      const collapseGlow = isCollapsed ? 0.3 + Math.sin(t * 8) * 0.2 : 0;
+
+      // Draw the toroidal wormhole
+      // We render it as a tilted torus seen from slightly above
+      const tiltAngle = 0.4; // Tilt for 3D perspective
+      const cosA = Math.cos(tiltAngle);
+      const sinA = Math.sin(tiltAngle);
+
+      // Background glow
+      const glowRadius = R * 1.6 * ignitionProgress;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowRadius);
+      if (isCollapsed) {
+        grad.addColorStop(0, 'rgba(255, 30, 30, 0.15)');
+        grad.addColorStop(0.5, 'rgba(180, 0, 0, 0.05)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      } else {
+        grad.addColorStop(0, 'rgba(60, 120, 220, 0.2)');
+        grad.addColorStop(0.4, 'rgba(40, 80, 180, 0.08)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      }
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+
+      // Magnetic field lines (outer curves extending from the torus)
+      const fieldLineCount = 8;
+      ctx.globalAlpha = 0.12 * ignitionProgress;
+      for (let i = 0; i < fieldLineCount; i++) {
+        const angle = (i / fieldLineCount) * Math.PI * 2 + t * 0.2;
+        const startX = cx + Math.cos(angle) * R * 0.9;
+        const startY = cy + Math.sin(angle) * R * 0.5 * cosA;
+        const ext = R * 0.8 + Math.sin(t + i) * 20;
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.quadraticCurveTo(
+          cx + Math.cos(angle) * (R + ext),
+          cy + Math.sin(angle) * (R + ext) * 0.5,
+          cx + Math.cos(angle + 0.5) * R * 0.9,
+          cy + Math.sin(angle + 0.5) * R * 0.5 * cosA
+        );
+        ctx.strokeStyle = isCollapsed ? '#ff4444' : '#8ab8ff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      // Draw the torus using flow lines (like the reference image)
+      // Multiple rings at different angles around the torus tube
+      const ringCount = 48;
+      const flowLineCount = 24;
+
+      // First pass: back half of torus (behind the hole)
+      drawTorusHalf(ctx, cx, cy, R, r, ringCount, flowLineCount, t, cosA, sinA, 
+        ignitionProgress, constriction, isCollapsed, collapseGlow, 'back', side);
+
+      // Draw the dark center (the wormhole opening)
+      const holeW = R * 0.65 * ignitionProgress * (1 - constriction * 0.6);
+      const holeH = holeW * 0.55;
+      
+      const holeGrad = ctx.createRadialGradient(cx, cy - R * 0.1, 0, cx, cy - R * 0.1, Math.max(holeW, holeH));
+      holeGrad.addColorStop(0, isCollapsed ? 'rgba(60, 0, 0, 0.95)' : 'rgba(5, 5, 25, 0.97)');
+      holeGrad.addColorStop(0.6, isCollapsed ? 'rgba(40, 0, 0, 0.8)' : 'rgba(10, 15, 45, 0.85)');
+      holeGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+      
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(cx, cy - R * 0.08, holeW, holeH, 0, 0, Math.PI * 2);
+      ctx.fillStyle = holeGrad;
+      ctx.fill();
+      ctx.restore();
+
+      // Stars inside the hole
+      if (!isCollapsed) {
+        const starCount = 6;
+        for (let i = 0; i < starCount; i++) {
+          const sx = cx + Math.cos(i * 1.7 + t * 0.1) * holeW * 0.5;
+          const sy = cy - R * 0.08 + Math.sin(i * 2.3 + t * 0.15) * holeH * 0.4;
+          const so = 0.2 + Math.sin(t * 2 + i) * 0.15;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 0.8, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(200, 220, 255, ${so})`;
+          ctx.fill();
+        }
+      }
+
+      // Second pass: front half of torus
+      drawTorusHalf(ctx, cx, cy, R, r, ringCount, flowLineCount, t, cosA, sinA,
+        ignitionProgress, constriction, isCollapsed, collapseGlow, 'front', side);
+
+      // Bright spots (like the pink points in the reference image)
+      if (!isCollapsed && phase === 'online') {
+        const spotCount = 2;
+        for (let i = 0; i < spotCount; i++) {
+          const spotAngle = t * 0.3 + i * Math.PI;
+          const sx = cx + Math.cos(spotAngle) * R * 1.05;
+          const sy = cy + Math.sin(spotAngle) * R * 0.5 * cosA;
+          const spotGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, 8);
+          spotGrad.addColorStop(0, 'rgba(255, 200, 255, 0.9)');
+          spotGrad.addColorStop(0.3, 'rgba(200, 100, 255, 0.4)');
+          spotGrad.addColorStop(1, 'rgba(100, 50, 200, 0)');
+          ctx.fillStyle = spotGrad;
+          ctx.fillRect(sx - 8, sy - 8, 16, 16);
+        }
+      }
+
+      animRef.current = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
+  }, [phase, isCollapsed, constriction, side]);
 
   return (
-    <>
-      {phase === 'igniting' && (
-        <div style={{
-          position: 'absolute',
-          width: '10px', height: '10px',
-          borderRadius: '50%',
-          background: '#fff',
-          animation: 'singularity-pulse 0.5s infinite',
-          zIndex: 20
-        }} />
-      )}
-      <div className="wormhole" style={style}></div>
-    </>
+    <div style={{
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'column',
+      gap: '8px'
+    }}>
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: 'min(280px, 40vw)',
+          height: 'min(280px, 40vw)',
+        }}
+      />
+      <span style={{
+        fontSize: '0.7rem',
+        color: 'rgba(255,255,255,0.4)',
+        letterSpacing: '0.15em',
+        textTransform: 'uppercase',
+      }}>
+        {side === 'entry' ? 'Entry Point' : 'Exit Point'}
+      </span>
+    </div>
   );
 };
+
+function drawTorusHalf(ctx, cx, cy, R, r, ringCount, flowLineCount, t, cosA, sinA,
+  ignitionProgress, constriction, isCollapsed, collapseGlow, half, side) {
+
+  // Draw flowing curves that wrap around the torus surface
+  for (let fl = 0; fl < flowLineCount; fl++) {
+    const tubeAngle = (fl / flowLineCount) * Math.PI * 2; // Position around tube cross-section
+    const flowSpeed = side === 'entry' ? 0.4 : -0.4;
+
+    ctx.beginPath();
+    let started = false;
+
+    for (let ri = 0; ri <= ringCount; ri++) {
+      const torusAngle = (ri / ringCount) * Math.PI * 2;
+
+      // Skip back or front half
+      const isBack = Math.sin(torusAngle) < 0;
+      if (half === 'back' && !isBack) continue;
+      if (half === 'front' && isBack) continue;
+
+      // Tube radius varies with constriction (throat narrows)
+      const throatFactor = 1 - constriction * 0.5 * (1 - Math.abs(Math.sin(torusAngle)));
+      const currentR = r * throatFactor * ignitionProgress;
+
+      // Point on torus surface
+      const tubeOffset = tubeAngle + t * flowSpeed + torusAngle * 0.3;
+      const px = (R + currentR * Math.cos(tubeOffset)) * Math.cos(torusAngle);
+      const py = currentR * Math.sin(tubeOffset) * cosA - (R + currentR * Math.cos(tubeOffset)) * Math.sin(torusAngle) * sinA;
+
+      const screenX = cx + px;
+      const screenY = cy + py;
+
+      if (!started) {
+        ctx.moveTo(screenX, screenY);
+        started = true;
+      } else {
+        ctx.lineTo(screenX, screenY);
+      }
+    }
+
+    // Color based on position around tube (creates depth illusion)
+    const depth = Math.sin(tubeAngle);
+    let alpha;
+    if (half === 'back') {
+      alpha = (0.08 + depth * 0.04) * ignitionProgress;
+    } else {
+      alpha = (0.25 + depth * 0.15) * ignitionProgress;
+    }
+
+    if (isCollapsed) {
+      const rr = 180 + Math.sin(t * 3 + fl) * 60;
+      ctx.strokeStyle = `rgba(${rr}, 30, 20, ${alpha + collapseGlow * 0.2})`;
+    } else {
+      // Blues and cyans like the reference image
+      const hue = 200 + Math.sin(tubeAngle + t * 0.5) * 30;
+      const sat = 60 + Math.sin(fl * 0.5) * 20;
+      const light = 55 + depth * 20 + Math.sin(t + fl * 0.3) * 10;
+      ctx.strokeStyle = `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
+    }
+
+    ctx.lineWidth = half === 'front' ? 1.2 : 0.6;
+    ctx.stroke();
+  }
+
+  // Add swirl highlights on front
+  if (half === 'front' && !isCollapsed) {
+    for (let s = 0; s < 6; s++) {
+      const sAngle = (s / 6) * Math.PI * 2 + t * 0.2;
+      const sR = R + r * 0.5 * Math.cos(sAngle * 3 + t);
+      const sx = cx + sR * Math.cos(sAngle) * 0.95;
+      const sy = cy + sR * Math.sin(sAngle) * 0.45 * cosA;
+
+      const hlGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, r * 0.4);
+      hlGrad.addColorStop(0, `rgba(180, 220, 255, ${0.06 * ignitionProgress})`);
+      hlGrad.addColorStop(1, 'rgba(100, 160, 220, 0)');
+      ctx.fillStyle = hlGrad;
+      ctx.fillRect(sx - r * 0.4, sy - r * 0.4, r * 0.8, r * 0.8);
+    }
+  }
+}
 
 export default Wormhole;

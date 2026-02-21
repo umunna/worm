@@ -2,29 +2,25 @@ import React from 'react';
 
 const ControlPanel = ({
     radius,
-    shapeFunc, // b(r)
-    exoticMatter,
-    exoticTank,
-    metricHistory,
+    curvature,
+    stabilized,
+    energyLevel,
+    stabilityHistory,
     harvesting,
-    onInjectExotic,
-    onSendMatter,
+    onActivateStabilizer,
+    onSendProbe,
     onToggleHarvest,
     onReset,
     isCollapsed,
     transitActive,
     gateStatus
 }) => {
-    // Metric condition: b(r) < r
-    const ratio = shapeFunc / radius;
+    const ratio = curvature / radius;
     const isStable = ratio < 1.0;
 
-    // Graph Logic
-    // metricHistory contains b(r) values. We want to plot them relative to r.
-    // SVG Height = 50px. Max value = r (10.0).
-    const graphPoints = metricHistory ? metricHistory.map((val, i) => {
-        const x = (i / 50) * 100; // 0 to 100% width
-        const y = 100 - (val / radius) * 100; // 0 to 100% height (inverted, 0 at bottom)
+    const graphPoints = stabilityHistory ? stabilityHistory.map((val, i) => {
+        const x = (i / 50) * 100;
+        const y = 100 - (val / radius) * 100;
         return `${x},${y}`;
     }).join(' ') : '';
 
@@ -48,7 +44,7 @@ const ControlPanel = ({
             fontFamily: 'monospace'
         }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'white', fontFamily: 'Inter, sans-serif' }}>Field Equations</h3>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'white', fontFamily: 'Inter, sans-serif' }}>Controls</h3>
                 <span style={{
                     fontSize: '0.8rem',
                     color: isStable ? '#00ff00' : '#ff0000',
@@ -56,11 +52,11 @@ const ControlPanel = ({
                     padding: '2px 8px',
                     borderRadius: '4px'
                 }}>
-                    {isCollapsed ? 'SINGULARITY' : 'TRAVERSABLE'}
+                    {isCollapsed ? 'COLLAPSED' : 'STABLE'}
                 </span>
             </div>
 
-            {/* Metric Graph */}
+            {/* Stability Graph */}
             <div style={{
                 height: '60px',
                 background: '#111',
@@ -69,9 +65,8 @@ const ControlPanel = ({
                 overflow: 'hidden',
                 border: '1px solid #333'
             }}>
-                {/* Limit Line (r) */}
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, borderBottom: '1px dashed #ff0000', height: '0px' }}></div>
-                <span style={{ position: 'absolute', top: '2px', right: '5px', color: '#ff0000', fontSize: '0.6rem' }}>r (Horizon)</span>
+                <span style={{ position: 'absolute', top: '2px', right: '5px', color: '#ff0000', fontSize: '0.6rem' }}>Collapse Limit</span>
 
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: '100%', height: '100%' }}>
                     <polyline
@@ -94,27 +89,27 @@ const ControlPanel = ({
                 padding: '10px',
                 borderRadius: '8px'
             }}>
-                <div>Throat Radius <br /><strong style={{ color: '#fff', fontSize: '1.1rem' }}>r = {radius.toFixed(2)} m</strong></div>
-                <div>Shape Func <br /><strong style={{ color: ratio > 0.8 ? '#ff0055' : '#00ffff', fontSize: '1.1rem' }}>b(r) = {shapeFunc.toFixed(2)} m</strong></div>
+                <div>Opening Size <br /><strong style={{ color: '#fff', fontSize: '1.1rem' }}>{radius.toFixed(1)} units</strong></div>
+                <div>Curvature <br /><strong style={{ color: ratio > 0.8 ? '#ff0055' : '#00ffff', fontSize: '1.1rem' }}>{curvature.toFixed(2)}</strong></div>
 
                 <div style={{ gridColumn: 'span 2', marginTop: '5px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '5px' }}>
                     <div style={{ fontSize: '0.75rem', marginTop: '0px', color: '#888' }}>
-                        Est. Transit Time: <span style={{ color: '#fff' }}>{((1000 * (1 / Math.max(0.01, 1 - ratio)) + 2000) / 1000).toFixed(2)}s</span>
+                        Travel Time: <span style={{ color: '#fff' }}>{((1000 * (1 / Math.max(0.01, 1 - ratio)) + 2000) / 1000).toFixed(2)}s</span>
                     </div>
                 </div>
             </div>
 
-            {/* Exotic Tank */}
+            {/* Energy Level */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#aaa' }}>
-                    <span>Vacuum Energy Density {harvesting && <span style={{ color: '#00ff00', animation: 'pulse 1s infinite' }}>▲ PUMPING</span>}</span>
-                    <span style={{ color: exoticTank < 20 ? '#ff0000' : '#00ffff' }}>{exoticTank.toFixed(1)}%</span>
+                    <span>Energy Reserve {harvesting && <span style={{ color: '#00ff00', animation: 'pulse 1s infinite' }}>CHARGING</span>}</span>
+                    <span style={{ color: energyLevel < 20 ? '#ff0000' : '#00ffff' }}>{energyLevel.toFixed(1)}%</span>
                 </div>
                 <div style={{ width: '100%', height: '4px', background: '#333', borderRadius: '2px' }}>
                     <div style={{
-                        width: `${exoticTank}%`,
+                        width: `${energyLevel}%`,
                         height: '100%',
-                        background: exoticTank < 20 ? '#ff0000' : '#00ffff',
+                        background: energyLevel < 20 ? '#ff0000' : '#00ffff',
                         transition: 'width 0.2s',
                         borderRadius: '2px',
                         boxShadow: harvesting ? '0 0 10px #00ff00' : 'none'
@@ -124,26 +119,26 @@ const ControlPanel = ({
 
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <button
-                    onClick={onInjectExotic}
-                    disabled={exoticMatter || exoticTank <= 0}
+                    onClick={onActivateStabilizer}
+                    disabled={stabilized || energyLevel <= 0}
                     style={{
                         flex: 2,
                         padding: '12px',
-                        backgroundColor: exoticMatter ? '#004444' : exoticTank <= 0 ? '#333' : '#00aaaa',
+                        backgroundColor: stabilized ? '#004444' : energyLevel <= 0 ? '#333' : '#00aaaa',
                         color: 'white',
                         border: 'none',
                         borderRadius: '8px',
-                        cursor: (exoticMatter || exoticTank <= 0) ? 'default' : 'pointer',
+                        cursor: (stabilized || energyLevel <= 0) ? 'default' : 'pointer',
                         fontWeight: 'bold',
                         transition: 'all 0.2s',
-                        opacity: exoticMatter ? 0.6 : 1,
+                        opacity: stabilized ? 0.6 : 1,
                         fontSize: '0.8rem'
                     }}
                 >
-                    {exoticTank <= 0 ? 'SOURCE DEPLETED' :
-                        gateStatus === 'igniting' ? 'IGNITION SEQUENCE...' :
-                            gateStatus === 'online' ? 'MODULATORS ACTIVE' :
-                                'INITIATE STARTUP'}
+                    {energyLevel <= 0 ? 'NO ENERGY' :
+                        gateStatus === 'igniting' ? 'OPENING...' :
+                            gateStatus === 'online' ? 'STABILIZED' :
+                                'OPEN WORMHOLE'}
                 </button>
 
                 <button
@@ -162,16 +157,16 @@ const ControlPanel = ({
                         transition: 'all 0.2s'
                     }}
                 >
-                    {harvesting ? 'PUMPS ENGAGED' : 'VACUUM PUMPS'}
+                    {harvesting ? 'CHARGING' : 'RECHARGE'}
                 </button>
 
                 <button
-                    onClick={onSendMatter}
+                    onClick={onSendProbe}
                     disabled={isCollapsed || transitActive}
                     style={{
                         flex: 2,
                         padding: '12px',
-                        backgroundColor: isCollapsed ? '#333' : transitActive ? '#aa00aa' : '#aa00aa',
+                        backgroundColor: isCollapsed ? '#333' : '#aa00aa',
                         color: 'white',
                         border: 'none',
                         borderRadius: '8px',
@@ -181,7 +176,7 @@ const ControlPanel = ({
                         fontSize: '0.8rem'
                     }}
                 >
-                    {transitActive ? 'TRANSITING...' : 'SEND PROBE'}
+                    {transitActive ? 'IN TRANSIT...' : 'SEND PROBE'}
                 </button>
             </div>
 
@@ -198,7 +193,7 @@ const ControlPanel = ({
                         marginTop: '5px'
                     }}
                 >
-                    RESET METRIC
+                    RESTART
                 </button>
             )}
         </div>
