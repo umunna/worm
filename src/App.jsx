@@ -107,15 +107,14 @@ function App() {
     if (pathResult.path.length === 0) return;
 
     // Calculate travel energy from PDF formula: E_total = TE_km * D
-    const ratio = curvature / radius;
-    const travelEnergy = calculateTravelEnergy(pathResult.distanceKm, ratio);
+    const travelEnergy = calculateTravelEnergy(pathResult.distanceKm);
 
     setLastPathResult(pathResult);
     setLastTravelEnergy(travelEnergy);
     setActivePath(pathResult.path);
     setNodeStates(prev => applyTraversalLoad(pathResult.path, prev));
 
-    const totalTime = calculateTraversalTime(pathResult, ratio);
+    const totalTime = calculateTraversalTime(pathResult);
     const ENTRY_DURATION = 800;
     const EXIT_DURATION = 800;
     const traverseDuration = Math.min(8000, totalTime);

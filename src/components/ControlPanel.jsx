@@ -123,8 +123,8 @@ const ControlPanel = ({
             <span className="cp-te-value">{lastTravelEnergy.householdDays.toFixed(1)} days</span>
           </div>
           <div className="cp-te-row">
-            <span className="cp-te-label">Dilation</span>
-            <span className="cp-te-value">{lastTravelEnergy.dilationFactor.toFixed(2)}x</span>
+            <span className="cp-te-label">Efficiency (CEE)</span>
+            <span className="cp-te-value">{lastTravelEnergy.cee.toFixed(5)}</span>
           </div>
         </div>
       )}

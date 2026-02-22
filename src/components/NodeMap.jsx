@@ -82,7 +82,6 @@ const NodeMap = ({ nodes, edges, nodeStates = {}, activePath = [], sourceNode, d
         const isSource = n.id === sourceNode;
         const isDest = n.id === destNode;
         const isOnPath = activePath.includes(n.id);
-        const isHub = n.id === 'D';
 
         // Heat glow ring
         if (state.heat > 0.5) {
@@ -110,15 +109,13 @@ const NodeMap = ({ nodes, edges, nodeStates = {}, activePath = [], sourceNode, d
           ctx.fillStyle = '#0088ff';
         } else if (isDest) {
           ctx.fillStyle = '#ff6600';
-        } else if (isHub) {
-          ctx.fillStyle = '#335577';
         } else {
           ctx.fillStyle = 'rgba(30, 50, 75, 0.9)';
         }
         ctx.fill();
 
-        ctx.strokeStyle = isOnPath ? '#00ffcc' : isHub ? '#5588aa' : 'rgba(80, 140, 200, 0.4)';
-        ctx.lineWidth = isHub ? 2 : 1.5;
+        ctx.strokeStyle = isOnPath ? '#00ffcc' : 'rgba(80, 140, 200, 0.4)';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
         // Label

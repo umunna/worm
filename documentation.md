@@ -1,111 +1,231 @@
-# Wormhole Simulation: Theoretical Physics Documentation
+# Wormhole Gateway -- Documentation
 
-This document outlines the mathematical framework and relativistic physics concepts implemented in the `Wormhole-Simulation` project. The simulation models a traversable wormhole based on the **Morris-Thorne metric**.
+## Overview
 
-## 1. The Morris-Thorne Metric
+Wormhole Gateway is a real-time simulation of wormhole-based transport across a mesh network of nodes. A user opens a wormhole, selects source and destination nodes, and sends a probe through the optimal path. Energy is drawn automatically from atmospheric antimatter once the wormhole activates -- there is no manual recharge.
 
-The spacetime geometry of a static, spherically symmetric wormhole is described by the line element:
+---
 
-$$ ds^2 = -e^{2\Phi(r)}dt^2 + \frac{dr^2}{1 - \frac{b(r)}{r}} + r^2(d\theta^2 + \sin^2\theta d\phi^2) $$
+## 1. Transport Network Topology
 
-Where:
-- **$r$**: The radial coordinate (defined from $-\infty$ to $+\infty$, or from $r_0$ to $\infty$ in our visual model). **Scale: Meters**.
-- **$b(r)$**: The **Shape Function**, which determines the spatial shape of the wormhole throat.
-- **$\Phi(r)$**: The Redshift Function (assumed constant $\Phi(r)=0$ for simplicity in this simulation to avoid event horizons elsewhere).
+### Structure
 
-## 2. Traversability Constraints
+- **7 nodes** (N1 through N7) form **1 gate**.
+- Nodes are arranged in a **heptagonal mesh** (7-sided ring) with cross-link shortcuts for redundancy.
+- Every node has individual **heat** and **load** tracking.
 
-For the wormhole to be traversable (i.e., no event horizon blocking the path), the following condition must strictly hold at the throat ($r_0$) and throughout the tunnel:
+### Edges
 
-$$ b(r) < r $$
+| Type        | Count | Distance                      |
+|-------------|-------|-------------------------------|
+| Ring edges  | 7     | 10 km each (adjacent nodes)   |
+| Cross-links | 7     | 18 km each (skip-1 shortcuts) |
 
-If $b(r) \ge r$ at any point, a coordinate singularity (or event horizon) forms, and the wormhole collapses or becomes non-traversable.
+Cross-links provide alternate paths so traffic can be rerouted when a node overheats or becomes overloaded. This reduces strain on any single transport node.
 
-### Implementation
-In `App.jsx`, this is enforced in the physics loop:
-```javascript
-const ratio = shapeFunc / radius; // b(r) / r
-if (new_b >= radius) {
-  setIsCollapsed(true); // Singularity forms
-}
+### Node Management
+
+Each node tracks two values that change dynamically:
+
+- **Heat**: Increases when a probe passes through. High heat adds a cost penalty during route calculation, pushing future traffic toward cooler nodes.
+- **Load**: Increases with transport activity. Terminal nodes (source and destination) receive more load than pass-through nodes.
+
+Both values decay naturally over time via the cooldown function running every physics tick (50 ms).
+
+---
+
+## 2. Travel Energy Model
+
+All formulas are derived from the Travel Energy Model paper.
+
+### Constants
+
+| Symbol    | Value              | Meaning                        |
+|-----------|--------------------|--------------------------------|
+| n         | 7                  | Nodes per gate                 |
+| d_node    | 10 km              | Spacing between adjacent nodes |
+| g         | 1                  | Number of gates                |
+| TE_km     | 130 MJ/km          | Travel energy per kilometre    |
+| TE_km (J) | 1.3 x 10^8 J/km   | Same value in joules           |
+
+### Gate Coverage Distance (D)
+
+```
+D = n * d_node * g
+D = 7 * 10 * 1 = 70 km
 ```
 
-## 3. Energy Conditions & Dynamics
+D is the **distance variable** representing the total spatial coverage of one gate. It is not a node label.
 
-Einstein's Field Equations, $G_{\mu\nu} = 8\pi T_{\mu\nu}$, imply that holding a wormhole throat open ($b(r) < r$) requires stress-energy tensor components that violate the Null Energy Condition (NEC). This is modeled as **Exotic Matter**.
+### Total Travel Energy (E_total)
 
-### dynamics Equation
-The simulation updates the shape function $b(r)$ based on energy inputs:
-
-$$ \frac{db}{dt} = \text{Gravity} - \text{ExoticFlux} + \text{MatterFlux} $$
-
-1.  **Gravity ($B\_GROWTH\_RATE$)**:
-    *   Natural tendency of spacetime to close the topological opening. This represents the positive energy density of the vacuum or background curvature.
-    *   $\Delta b \approx +0.05$ per tick.
-
-2.  **Exotic Matter (Negative Energy)**:
-    *   Required to "push" the throat open (decrease $b(r)$).
-    *   $\Delta b \approx -0.3$ per tick (when active).
-    *   *Constraint*: Must be continuously injected to counteract gravity.
-
-3.  **Normal Matter Transit (Positive Energy)**:
-    *   Passing a probe adds positive mass-energy to the throat interactions.
-    *   This opposes the exotic matter, increasing $b(r)$ and pushing the wormhole toward collapse.
-    *   $\Delta b \approx +0.2$ per tick (during transit).
-
-## 4. Gravitational Time Dilation
-
-As the throat constricts ($b(r) \to r$), the coordinate time $t$ for a traveler traversing the wormhole dilates relative to an observer at infinity. We model the transit time $T$ as:
-
-$$ T = \frac{T_0}{1 - \frac{b(r)}{r}} $$
-
-Where:
-- $T_0$: Base transit time (1 second).
-- As $b(r)$ approaches $r$, the denominator approaches 0, and $T \to \infty$.
-
-### Implementation
-```javascript
-const ratio = shapeFunc / radius;
-const dilationFactor = 1 / Math.max(0.01, 1 - ratio);
-const traverseDuration = 1000 * dilationFactor;
 ```
-This implies that sending a probe through a barely-stable wormhole takes significantly longer than through a well-stabilized one.
+E_total = TE_km * D_path
+```
 
-## 5. Visual Representation
+Where `D_path` is the actual shortest-path distance in km between the source and destination nodes. For example, if the shortest path from N1 to N3 uses the 18 km cross-link:
 
-- **Throat Radius ($r$)**: Represented by the outer bounds of the wormhole component.
-- **Constriction ($b(r)$)**: Visualized as the "Event Horizon" glow tightening.
-    - When $b(r) \approx 0$: The wormhole is wide open and stable.
-    - When $b(r) \to r$: The wormhole visually shrinks/shocked as the throat pinches off.
+```
+E_total = 130 * 18 = 2,340 MJ
+```
 
-## 6. Resource Constraints
-Maintaining a traversable wormhole requires a constant flux of negative energy to counteract natural gravitational collapse.
+### Household Energy Equivalence
 
-- **Exotic Matter Tank**: Represents the finite supply of negative mass-energy.
-- **Depletion**: Active stabilization consumes ~0.2% of reserves per tick.
-- **Depleted State**: If reserves hit 0%, the stabilization fails, and gravity takes over which leads to inevitable collapse.
+```
+1 km of travel energy ~ 1 household-day of energy consumption
+```
 
-## 8. Quantum Vacuum Harvesting (Casimir Effect)
-Since exotic matter is not readily available, the system uses a **Casimir Collector** to harvest energy from quantum vacuum fluctuations. 
-- **Mechanism**: Conductive plates limit the wavelengths of virtual particles, creating a local negative energy density relative to the surroundings.
-- **Harvest Rate**: $\approx +0.1\%$ per tick.
-- **Net Energy**: Harvesting (+0.1) is slower than Injection Consumption (-0.2), meaning one must actively manage charging cycles.
+A 20 km traversal consumes roughly the same energy a household uses in 20 days.
 
-## 9. Quantum Field Engineering
-To create and sustain the wormhole, the system employs advanced quantum field manipulation technologies:
+### Coverage Energy Efficiency (CEE)
 
-### Quantum Vacuum Pumps (Harvester)
-Devices utilizing **Casimir Cavity Arrays** to extract negative energy from the quantum vacuum state ("Harvesting").
-- **Function**: Amplifies micro-fluctuations in the vacuum to generate a usable negative energy flux.
-- **Components**: Dense networks of nano-scale Casimir cavities.
+```
+CEE = 1 / TE_km = 1 / 130 = 0.00769 km/MJ
+```
 
-### Field Modulators (Stabilizer)
-High-energy emitters that focus the harvested negative energy into the wormhole throat.
-- **Function**: Counteracts the positive energy density of the throat's gravity to satisfy the constraint $b(r) < r$.
-- **Operation**: Requires constant power ("Exotic Matter" consumption) to maintain the field gradient.
+CEE measures how far you can travel per unit of energy. A lower TE_km means higher efficiency.
 
-## 10. Metric Visualization
-The Control Panel features a real-time graph of the **Shape Function** $b(r)$ relative to the **Throat Radius** $r$.
-- **Y-Axis**: Represents spatial extent. Top line = $r$ (10.00 m Event Horizon Limit).
-- **curve**: The time-evolution of $b(r)$.
-- **Constraint**: If the curve touches the top line ($b(r) = r$), the wormhole collapses.
+---
+
+## 3. Shortest Path Algorithm
+
+Routing uses **Dijkstra's algorithm** with dynamic weight penalties.
+
+### Base Weights
+
+Each edge has a base weight equal to its physical distance in km:
+- Ring edges: 10 km
+- Cross-links: 18 km
+
+### Dynamic Penalties
+
+When evaluating a neighbour node during pathfinding, the effective weight is:
+
+```
+effectiveWeight = baseWeight + (node.heat * 0.8) + (node.load * 0.5)
+```
+
+This means:
+- A node at heat 5 adds a 4.0 km equivalent penalty.
+- A node at load 6 adds a 3.0 km equivalent penalty.
+- A hot and loaded node can add up to 12.0 km of penalty, causing the algorithm to route around it.
+
+### Path Result
+
+The algorithm returns:
+- **path**: Ordered list of node IDs from source to destination.
+- **cost**: Total weighted cost (includes penalties).
+- **hops**: Number of edges traversed.
+- **distanceKm**: Raw physical distance in km (without penalties), used for energy calculations.
+
+---
+
+## 4. Traversal Time
+
+Traversal animation time is calculated from path distance and a fixed time multiplier:
+
+```
+baseDuration   = distanceKm * 30 ms
+hopSwitchTime  = hops * 150 ms
+totalTime      = (baseDuration + hopSwitchTime) * TIME_MULTIPLIER
+```
+
+| Parameter       | Value  |
+|-----------------|--------|
+| TIME_MULTIPLIER | 1.5    |
+| Per-km rate     | 30 ms  |
+| Per-hop switch  | 150 ms |
+
+Traversal time scales linearly with distance and hop count. There is no dilation factor.
+
+---
+
+## 5. Energy System
+
+### Antimatter Intake
+
+Once the wormhole opens (gate status is "igniting" or "online"), energy is automatically drawn from atmospheric antimatter at a constant rate:
+
+```
+ANTIMATTER_INTAKE_RATE = 0.15 units per tick (50 ms)
+```
+
+This provides approximately 3 units/second of passive energy gain. There is no manual recharge -- the antimatter atmosphere is the sole energy source.
+
+### Energy Consumption
+
+The stabilisation field drains energy at:
+
+```
+STABILISATION_DRAIN = 0.2 units per tick
+```
+
+Net energy flow when active: `+0.15 - 0.20 = -0.05 units/tick`. The wormhole slowly drains but remains open for extended periods before energy runs out.
+
+### Collapse Condition
+
+If energy reaches 0, stabilisation turns off. Without stabilisation, curvature rises toward the radius threshold and the wormhole collapses.
+
+---
+
+## 6. Curvature and Stability
+
+### Physics Loop (50 ms tick)
+
+Each tick:
+
+1. Curvature naturally increases by `DECAY_RATE = 0.05` (gravitational tendency to close).
+2. If stabilised, curvature decreases by `STABILISE_FLUX = 0.3` (net: -0.25 per tick).
+3. If a probe is in transit, curvature increases by `TRANSIT_STRESS * 0.1 = 0.2` per tick.
+
+### Collapse
+
+When curvature reaches the throat radius (default 10.0), the wormhole collapses. The ratio `curvature / radius` drives the visual constriction:
+
+- **0.0** = fully open
+- **1.0** = collapsed
+
+---
+
+## 7. Time Splice Configuration
+
+From the original reference notes:
+
+- The system uses a **fixed time multiplier** (1.5x) and a **manipulative system** for adjusting traversal parameters.
+- Transport between nodes happens via teleportation. The routing algorithm distributes traffic to reduce overheating and balance load.
+- Each gate contains a cluster of **7 nodes**, each managed individually with their own heat and load state.
+- Gates are operated from node commands: the source node initiates transport, the destination node receives it.
+- The shortest path algorithm dynamically routes around congested nodes to prevent bottlenecks.
+
+---
+
+## 8. File Structure
+
+```
+src/
+  App.jsx                  Main app: physics loop, state, event handlers
+  main.jsx                 React entry point
+  index.css                All styles and responsive breakpoints
+  lib/
+    nodeNetwork.js         7-node mesh, Dijkstra, energy formulas
+  components/
+    Wormhole.jsx           Canvas-based toroidal wormhole rendering
+    ControlPanel.jsx       Responsive control panel with stats and node map
+    NodeMap.jsx            Canvas-based network topology visualisation
+    Probe.jsx              Animated probe element
+    StarField.jsx          Background star particle system
+    Gate.jsx               Legacy gate wrapper (unused)
+```
+
+---
+
+## 9. Key Formulas Summary
+
+| Formula              | Expression                          | Result            |
+|----------------------|-------------------------------------|--------------------|
+| Gate coverage        | D = n * d_node * g                  | 70 km              |
+| Travel energy        | E_total = 130 * D_path (MJ)        | Varies by route    |
+| Household equivalent | ~1 km = ~1 household-day            | Linear             |
+| Coverage efficiency  | CEE = 1 / 130                       | 0.00769 km/MJ     |
+| Traversal time       | (D * 30 + hops * 150) * 1.5 ms     | Varies by route    |
+| Dynamic edge cost    | base + heat * 0.8 + load * 0.5     | Varies by state    |

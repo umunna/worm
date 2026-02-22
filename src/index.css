@@ -71,7 +71,7 @@ h1 {
   height: 100%;
   position: relative;
   z-index: 10;
-  padding: 50px 2% 0;
+  padding: 50px 2% 160px;
   gap: 0;
 }
 
@@ -476,7 +476,7 @@ h1 {
   }
 
   .wormhole-container {
-    padding: 60px 5% 0;
+    padding: 60px 5% 180px;
   }
 }
 
@@ -488,7 +488,7 @@ h1 {
   }
 
   .wormhole-container {
-    padding: 40px 1% 0;
+    padding: 40px 1% 200px;
   }
 
   .wormhole-wrapper canvas {
@@ -533,7 +533,7 @@ h1 {
 /* ---- RESPONSIVE: Landscape short ---- */
 @media (max-height: 500px) {
   .wormhole-container {
-    padding-top: 36px;
+    padding: 36px 2% 140px;
   }
 
   .wormhole-wrapper canvas {

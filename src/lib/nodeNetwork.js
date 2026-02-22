@@ -28,8 +28,9 @@ const TE_KM = 130;                  // Travel Energy per km (MJ/km)
 const TE_KM_JOULES = 1.3e8;        // 1.3 * 10^8 J/km
 const TIME_MULTIPLIER = 1.5;        // Fixed time multiplier from notes
 
-// D = n * d_node * g  (total spatial coverage distance)
-const D_GATE = NODES_PER_GATE * NODE_SPACING_KM * GATE_COUNT; // 70 km
+// D = n * d_node * g  (total gate coverage distance)
+// D is the distance variable, not a node label.
+const D_GATE = NODES_PER_GATE * NODE_SPACING_KM * GATE_COUNT; // 7 * 10 * 1 = 70 km
 
 // ---------- 7-Node heptagonal layout ----------
 const TAU = Math.PI * 2;
@@ -165,13 +166,14 @@ export function findShortestPath(startId, endId, nodeStates = {}) {
 }
 
 /**
- * Travel Energy calculation -- directly from PDF formulas:
+ * Travel Energy calculation -- from PDF formulas:
  *
- *   E_total = TE_km * D          (Eq. 10)
- *   household-days ~ D_km        (Eq. 5-6)
- *   CEE = 1 / TE_km              (Eq. 22)
+ *   TE_km  = 130 MJ/km                     (Eq. 4)
+ *   E_total = TE_km * D                     (Eq. 10)
+ *   1 km ~ 1 household-day of energy        (Eq. 5-6)
+ *   CEE = 1 / TE_km                         (Eq. 22)
  *
- * No dilation. Straightforward linear scaling.
+ * Pure linear scaling. No dilation factor.
  */
 export function calculateTravelEnergy(distanceKm) {
   const energyMJ = TE_KM * distanceKm;
@@ -179,22 +181,17 @@ export function calculateTravelEnergy(distanceKm) {
   const householdDays = distanceKm;  // 1 km ~ 1 household-day
   const cee = 1 / TE_KM;            // Coverage Energy Efficiency
 
-  return {
-    distanceKm,
-    energyMJ,
-    energyGJ,
-    householdDays,
-    cee,
-  };
+  return { distanceKm, energyMJ, energyGJ, householdDays, cee };
 }
 
 /**
  * Calculate traversal animation time (ms).
  * Uses path distance and fixed time multiplier.
+ * No dilation -- purely distance-based timing.
  */
 export function calculateTraversalTime(pathResult) {
   const { distanceKm, hops } = pathResult;
-  const baseDuration = distanceKm * 30;   // 30ms per km
+  const baseDuration = distanceKm * 30;   // 30ms per km of path
   const hopSwitchTime = hops * 150;       // 150ms per node switch
   return (baseDuration + hopSwitchTime) * TIME_MULTIPLIER;
 }
