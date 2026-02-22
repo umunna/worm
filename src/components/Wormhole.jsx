@@ -64,61 +64,118 @@ const Wormhole = ({ constriction = 0, isCollapsed, phase = 'offline', side = 'en
       }
 
       // --- INJECTING: antimatter particles streaming inward ---
+      // Antimatter is invisible. We show it as near-black dark distortions
+      // with faint dark indigo shimmer -- you see where space bends, not the matter itself.
       if (phase === 'injecting') {
-        // Pulsing center glow that grows
-        const pulseAlpha = 0.15 + Math.sin(t * 4) * 0.1;
-        const growRadius = R * 0.3 + Math.sin(t * 2) * R * 0.05;
+        // Subtle dark center void that pulses and grows
+        const pulseAlpha = 0.06 + Math.sin(t * 3) * 0.03;
+        const growRadius = R * 0.35 + Math.sin(t * 1.5) * R * 0.08;
         const centerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, growRadius);
-        centerGrad.addColorStop(0, `rgba(0, 180, 255, ${pulseAlpha})`);
-        centerGrad.addColorStop(0.6, `rgba(0, 80, 200, ${pulseAlpha * 0.4})`);
+        centerGrad.addColorStop(0, `rgba(10, 10, 40, ${pulseAlpha + 0.12})`);
+        centerGrad.addColorStop(0.4, `rgba(8, 8, 30, ${pulseAlpha})`);
         centerGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = centerGrad;
         ctx.fillRect(0, 0, SIZE, SIZE);
 
-        // Antimatter particles streaming inward from all directions
-        const particleCount = 28;
+        // Dark antimatter distortion particles -- near-invisible, just bending light
+        const particleCount = 32;
         for (let i = 0; i < particleCount; i++) {
           const baseAngle = (i / particleCount) * Math.PI * 2;
-          const speed = 0.6 + (i % 3) * 0.2;
+          const speed = 0.4 + (i % 3) * 0.15;
           const progress = ((t * speed + i * 0.37) % 1.0);
-          const dist = R * 1.4 * (1 - progress);
-          const px = cx + Math.cos(baseAngle + t * 0.1) * dist;
-          const py = cy + Math.sin(baseAngle + t * 0.1) * dist * 0.6;
-          const pSize = 1.5 + progress * 2;
-          const pAlpha = progress * 0.8;
+          const dist = R * 1.5 * (1 - progress);
+          const px = cx + Math.cos(baseAngle + t * 0.08) * dist;
+          const py = cy + Math.sin(baseAngle + t * 0.08) * dist * 0.6;
+          const pSize = 1.8 + progress * 2.5;
 
+          // Dark core -- the antimatter itself (nearly invisible)
+          const coreAlpha = progress * 0.25;
           ctx.beginPath();
           ctx.arc(px, py, pSize, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(100, 200, 255, ${pAlpha})`;
+          ctx.fillStyle = `rgba(15, 15, 50, ${coreAlpha})`;
           ctx.fill();
 
-          // Particle trail
-          const trailLen = 3;
-          for (let tr = 1; tr <= trailLen; tr++) {
-            const trailProgress = Math.max(0, progress - tr * 0.04);
-            const trailDist = R * 1.4 * (1 - trailProgress);
-            const tx = cx + Math.cos(baseAngle + t * 0.1) * trailDist;
-            const ty = cy + Math.sin(baseAngle + t * 0.1) * trailDist * 0.6;
+          // Faint indigo edge glow -- the only hint something is there
+          const edgeAlpha = progress * 0.12;
+          ctx.beginPath();
+          ctx.arc(px, py, pSize + 1.5, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(40, 30, 90, ${edgeAlpha})`;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+
+          // Dark trailing wake
+          for (let tr = 1; tr <= 2; tr++) {
+            const trailProgress = Math.max(0, progress - tr * 0.05);
+            const trailDist = R * 1.5 * (1 - trailProgress);
+            const tx = cx + Math.cos(baseAngle + t * 0.08) * trailDist;
+            const ty = cy + Math.sin(baseAngle + t * 0.08) * trailDist * 0.6;
             ctx.beginPath();
-            ctx.arc(tx, ty, pSize * (1 - tr * 0.25), 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(100, 200, 255, ${pAlpha * (1 - tr * 0.3)})`;
+            ctx.arc(tx, ty, pSize * (1 - tr * 0.3), 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(12, 12, 45, ${coreAlpha * (1 - tr * 0.35)})`;
             ctx.fill();
           }
         }
 
-        // Growing ring outline
-        const ringAlpha = 0.3 + Math.sin(t * 3) * 0.15;
+        // Faint ring outline forming where antimatter converges
+        const ringAlpha = 0.12 + Math.sin(t * 2.5) * 0.06;
         ctx.beginPath();
         ctx.ellipse(cx, cy, R * 0.35, R * 0.18, 0, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(0, 200, 255, ${ringAlpha})`;
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = `rgba(30, 25, 70, ${ringAlpha})`;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        // Label
-        ctx.fillStyle = `rgba(0, 200, 255, ${0.4 + Math.sin(t * 3) * 0.2})`;
+        // Very faint label
+        ctx.fillStyle = `rgba(50, 45, 100, ${0.2 + Math.sin(t * 2.5) * 0.1})`;
         ctx.font = `${SIZE * 0.032}px monospace`;
         ctx.textAlign = 'center';
         ctx.fillText('INJECTING', cx, cy + R * 0.35);
+
+        animRef.current = requestAnimationFrame(render);
+        return;
+      }
+
+      // --- RECHARGING: wormhole flickering, unstable, still present ---
+      if (phase === 'recharging') {
+        const flicker = 0.3 + Math.sin(t * 6) * 0.15 + Math.sin(t * 11) * 0.08;
+
+        // Unstable glow
+        const glowR = R * 1.2;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+        grad.addColorStop(0, `rgba(255, 170, 0, ${0.06 * flicker})`);
+        grad.addColorStop(0.5, `rgba(180, 100, 0, ${0.03 * flicker})`);
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, SIZE, SIZE);
+
+        // Flickering torus outline
+        const torusAlpha = flicker * 0.4;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, R * 0.8, R * 0.4, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255, 170, 0, ${torusAlpha})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - R * 0.05, R * 0.5, R * 0.25, 0, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(5, 5, 20, ${0.6 * flicker})`;
+        ctx.fill();
+
+        // Warning dots
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + t * 0.4;
+          const dx = cx + Math.cos(a) * R * 0.75;
+          const dy = cy + Math.sin(a) * R * 0.35;
+          const da = flicker * (0.3 + Math.sin(t * 3 + i) * 0.15);
+          ctx.beginPath();
+          ctx.arc(dx, dy, 1.5, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 170, 0, ${da})`;
+          ctx.fill();
+        }
+
+        ctx.fillStyle = `rgba(255, 170, 0, ${0.3 + Math.sin(t * 3) * 0.15})`;
+        ctx.font = `${SIZE * 0.03}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('RECHARGING', cx, cy + R * 0.45);
 
         animRef.current = requestAnimationFrame(render);
         return;

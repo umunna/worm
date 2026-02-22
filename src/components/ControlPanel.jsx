@@ -47,9 +47,9 @@ const ControlPanel = ({
         <div className="cp-header-right">
           <span
             className="cp-status"
-            style={{ color: isStable && !isCollapsed ? '#00ff88' : '#ff4444' }}
+            style={{ color: isCollapsed ? '#ff4444' : gateStatus === 'recharging' ? '#ffaa00' : isStable ? '#00ff88' : '#ff4444' }}
           >
-            {isCollapsed ? 'COLLAPSED' : isOnline ? 'STABLE' : gateStatus === 'igniting' ? 'OPENING' : gateStatus === 'injecting' ? 'INJECTING' : 'OFFLINE'}
+            {isCollapsed ? 'COLLAPSED' : gateStatus === 'recharging' ? 'RECHARGING' : isOnline ? 'STABLE' : gateStatus === 'igniting' ? 'OPENING' : gateStatus === 'injecting' ? 'INJECTING' : 'OFFLINE'}
           </span>
           <button className="cp-expand-btn" onClick={() => setExpanded(!expanded)}>
             {expanded ? 'Less' : 'More'}
@@ -62,9 +62,9 @@ const ControlPanel = ({
         <div className="cp-energy-labels">
           <span>
             Energy
-            {(gateStatus === 'injecting' || gateStatus === 'igniting' || gateStatus === 'online') && (
-              <span className="cp-intake-badge">
-                {gateStatus === 'injecting' ? 'ANTIMATTER INJECTING' : 'INTAKE ACTIVE'}
+            {(gateStatus === 'injecting' || gateStatus === 'igniting' || gateStatus === 'online' || gateStatus === 'recharging') && (
+              <span className="cp-intake-badge" style={gateStatus === 'recharging' ? { background: 'rgba(255, 170, 0, 0.15)', color: '#ffaa00' } : undefined}>
+                {gateStatus === 'injecting' ? 'ANTIMATTER INJECTING' : gateStatus === 'recharging' ? 'RECHARGING' : 'INTAKE ACTIVE'}
               </span>
             )}
           </span>
@@ -77,8 +77,11 @@ const ControlPanel = ({
             className="cp-energy-fill"
             style={{
               width: `${energyLevel}%`,
-              background: energyLevel < 20 ? '#ff4444' : '#00ccff',
-              boxShadow: gateStatus === 'online' ? '0 0 8px rgba(0, 204, 255, 0.6)' : 'none',
+              background: gateStatus === 'recharging' ? '#ffaa00' : energyLevel < 20 ? '#ff4444' : '#00ccff',
+              boxShadow: gateStatus === 'recharging'
+                ? '0 0 8px rgba(255, 170, 0, 0.5)'
+                : gateStatus === 'online' ? '0 0 8px rgba(0, 204, 255, 0.6)' : 'none',
+              animation: gateStatus === 'recharging' ? 'recharge-pulse 1.5s ease-in-out infinite' : 'none',
             }}
           />
         </div>
@@ -97,15 +100,17 @@ const ControlPanel = ({
               ? 'INJECTING...'
               : gateStatus === 'igniting'
                 ? 'OPENING...'
-                : gateStatus === 'online'
-                  ? 'STABILIZED'
-                  : 'OPEN WORMHOLE'}
+                : gateStatus === 'recharging'
+                  ? `RECHARGING ${energyLevel.toFixed(0)}%`
+                  : gateStatus === 'online'
+                    ? 'STABILIZED'
+                    : 'OPEN WORMHOLE'}
         </button>
 
         <button
           className="cp-btn cp-btn-send"
           onClick={onSendProbe}
-          disabled={isCollapsed || transitActive || gateStatus !== 'online'}
+          disabled={isCollapsed || transitActive || (gateStatus !== 'online')}
         >
           {transitActive ? 'IN TRANSIT...' : `SEND ${sourceNode} \u2192 ${destNode}`}
         </button>

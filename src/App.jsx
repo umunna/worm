@@ -28,6 +28,7 @@ const INJECTION_DURATION = 2500;       // ms for antimatter injection phase
 // Full gate coverage D_GATE = 70 km costs TE_KM * D_GATE = 9100 MJ.
 // We define that as 100% of the bar's capacity.
 const GATE_ENERGY_CAPACITY_MJ = TE_KM * D_GATE; // 9100 MJ = 100% bar
+const RECHARGE_THRESHOLD = 30; // % energy needed before stabilization can resume
 
 function App() {
   const [radius] = useState(INITIAL_RADIUS);
@@ -63,42 +64,45 @@ function App() {
       setEnergyLevel(tank => {
         let change = 0;
 
-        // Antimatter auto-intake: draws from atmosphere while gate is active
-        // Rate: +0.12/tick = +2.4%/sec  (slow, deliberate accumulation)
-        const gateActive = gateStatus === 'injecting' || gateStatus === 'igniting' || gateStatus === 'online';
-        if (gateActive) {
+        // Antimatter auto-intake: draws from atmosphere while gate is in any active state
+        // This includes 'recharging' -- the wormhole still exists, antimatter is still being drawn
+        const gateAlive = gateStatus === 'injecting' || gateStatus === 'igniting'
+          || gateStatus === 'online' || gateStatus === 'recharging';
+        if (gateAlive) {
           change += ANTIMATTER_INTAKE_RATE;
         }
 
-        // Stabilization constantly drains energy: -0.1/tick = -2%/sec
+        // Stabilization drain only when actively stabilized (not during recharge)
         if (stabilized) {
           change -= STABILIZE_DRAIN;
         }
 
-        // Transit adds extra continuous drain: -0.15/tick = -3%/sec on top
+        // Transit extra drain
         if (transitActive) {
           change -= 0.15;
         }
 
-        // Net rates:
-        //   Injection only:  +2.4%/sec  (energy climbs)
-        //   Online idle:     +0.4%/sec  (barely positive -- intake just covers drain)
-        //   Online transit:  -2.6%/sec  (actively dropping during transport)
-
         const newLevel = Math.max(0, Math.min(100, tank + change));
 
-        // If energy fully depleted, shut everything down
+        // Energy depleted while stabilized: enter recharging mode (don't kill the gate)
         if (newLevel <= 0 && stabilized) {
           setStabilized(false);
-          setGateStatus('offline');
-          setCurvature(0);
+          setGateStatus('recharging');
+          // Curvature stays where it is -- the wormhole is still there, just unstable
+        }
+
+        // Recharging complete: auto-resume stabilization once threshold reached
+        if (gateStatus === 'recharging' && newLevel >= RECHARGE_THRESHOLD) {
+          setStabilized(true);
+          setGateStatus('online');
         }
 
         return newLevel;
       });
 
-      // Curvature only changes when gate is active
-      const gateActive = gateStatus === 'igniting' || gateStatus === 'online';
+      // Curvature changes when gate is active or recharging
+      // During recharge, curvature drifts upward (no stabilizer) -- adds urgency
+      const gateActive = gateStatus === 'igniting' || gateStatus === 'online' || gateStatus === 'recharging';
       if (gateActive) {
         setCurvature(c => {
           let delta = DECAY_RATE; // Natural tendency to close
@@ -189,7 +193,7 @@ function App() {
       setTransitActive(false);
       setActivePath([]);
     }, ENTRY_DURATION + traverseDuration + EXIT_DURATION);
-  }, [isCollapsed, probePhase, gateStatus, sourceNode, destNode, nodeStates, curvature, radius]);
+  }, [isCollapsed, probePhase, gateStatus, sourceNode, destNode, nodeStates, energyLevel]);
 
   const handleSelectNode = useCallback((nodeId) => {
     if (transitActive) return;

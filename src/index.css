@@ -441,6 +441,11 @@ h1 {
   50% { opacity: 1; }
 }
 
+@keyframes recharge-pulse {
+  0%, 100% { opacity: 0.5; box-shadow: 0 0 4px rgba(255, 170, 0, 0.3); }
+  50% { opacity: 1; box-shadow: 0 0 10px rgba(255, 170, 0, 0.6); }
+}
+
 /* ---- RESPONSIVE: Tablet+ ---- */
 @media (min-width: 640px) {
   .control-panel {
