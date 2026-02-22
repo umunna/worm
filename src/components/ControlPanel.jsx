@@ -125,11 +125,11 @@ const ControlPanel = ({
         >
           {transitActive ? 'IN TRANSIT...' : `SEND ${sourceNode} \u2192 ${destNode}`}
         </button>
-
-        {probeError && (
-          <div className="cp-probe-error">{probeError}</div>
-        )}
       </div>
+
+      {probeError && (
+        <div className="cp-probe-error">{probeError}</div>
+      )}
 
       {/* Travel energy readout (shows after a send) */}
       {lastTravelEnergy && (

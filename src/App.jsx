@@ -15,36 +15,19 @@ import {
   getCoverageDistance,
   getGateCount,
   getTotalNodes,
-  TE_KM,
-  NODES_PER_GATE,
-  NODE_SPACING_KM,
 } from './lib/nodeNetwork';
 
-// Physics constants
 const INITIAL_RADIUS = 10.0;
 const DECAY_RATE = 0.05;
 const STABILIZE_FLUX = 0.3;
 const TRANSIT_STRESS = 2.0;
 const INJECTION_DURATION = 2500;
 
-// Energy rates (per 50ms tick, 20 ticks/sec):
-//   Intake:          +0.18/tick = +3.6%/sec
-//   Stabilize drain: -0.06/tick = -1.2%/sec
-//   Transit drain:   -0.08/tick = -1.6%/sec  (on top of stabilize)
-//
-// Net idle (online):      +0.12/tick = +2.4%/sec  (steady recharge)
-// Net transit (online):   +0.04/tick = +0.8%/sec  (still positive but slow)
-const ANTIMATTER_INTAKE_RATE = 0.18;
-const STABILIZE_DRAIN = 0.06;
-const TRANSIT_EXTRA_DRAIN = 0.08;
+const ANTIMATTER_INTAKE_RATE = 0.18;  // +3.6%/sec
+const STABILIZE_DRAIN = 0.06;         // -1.2%/sec
+const TRANSIT_EXTRA_DRAIN = 0.08;     // -1.6%/sec
 
-// Energy cost per probe: percentage of the 100% bar.
-// Each km costs TE_KM (130 MJ). We scale so 1 gate (70 km) maps
-// to a GENEROUS capacity so you can send ~5-8 probes per full bar.
-// 100% bar = 5 * E_total_max_path.  Max single-gate path ~36 km = 4680 MJ.
-// So 100% = 5 * 4680 = 23400 MJ.  A 28 km trip costs (130*28/23400)*100 = 15.6%.
-const ENERGY_CAPACITY_MJ = 23400;
-
+const ENERGY_CAPACITY_MJ = 23400;     // 100% bar = 23,400 MJ
 const RECHARGE_THRESHOLD = 30;
 
 function App() {
@@ -72,10 +55,6 @@ function App() {
   const nodes = getNodes();
   const edges = getEdges();
 
-  // Physics loop: antimatter is drawn from the atmosphere once wormhole is active.
-  // This intake creates the curvature needed for stabilization.
-  // Energy only drains during active stabilization; intake covers the cost.
-  // Transit puts extra stress on the system, temporarily increasing drain.
   useEffect(() => {
     if (isCollapsed) return;
 
@@ -83,32 +62,19 @@ function App() {
       setEnergyLevel(tank => {
         let change = 0;
 
-        // Antimatter auto-intake while gate is alive (including recharging)
         const gateAlive = gateStatus === 'injecting' || gateStatus === 'igniting'
           || gateStatus === 'online' || gateStatus === 'recharging';
-        if (gateAlive) {
-          change += ANTIMATTER_INTAKE_RATE; // +3.6%/sec
-        }
-
-        // Stabilization drain (only when actively stabilized)
-        if (stabilized) {
-          change -= STABILIZE_DRAIN; // -1.2%/sec
-        }
-
-        // Transit extra drain
-        if (transitActive) {
-          change -= TRANSIT_EXTRA_DRAIN; // -1.6%/sec
-        }
+        if (gateAlive) change += ANTIMATTER_INTAKE_RATE;
+        if (stabilized) change -= STABILIZE_DRAIN;
+        if (transitActive) change -= TRANSIT_EXTRA_DRAIN;
 
         const newLevel = Math.max(0, Math.min(100, tank + change));
 
-        // Energy depleted: enter recharging mode (gate stays alive)
         if (newLevel <= 0 && stabilized) {
           setStabilized(false);
           setGateStatus('recharging');
         }
 
-        // Recharging complete: auto-resume
         if (gateStatus === 'recharging' && newLevel >= RECHARGE_THRESHOLD) {
           setStabilized(true);
           setGateStatus('online');
@@ -117,14 +83,12 @@ function App() {
         return newLevel;
       });
 
-      // Curvature changes when gate is active or recharging
-      // During recharge, curvature drifts upward (no stabilizer) -- adds urgency
       const gateActive = gateStatus === 'igniting' || gateStatus === 'online' || gateStatus === 'recharging';
       if (gateActive) {
         setCurvature(c => {
-          let delta = DECAY_RATE; // Natural tendency to close
-          if (stabilized) delta -= STABILIZE_FLUX; // Stabilizer counteracts
-          if (transitActive) delta += TRANSIT_STRESS * 0.1; // Transit stress
+          let delta = DECAY_RATE;
+          if (stabilized) delta -= STABILIZE_FLUX;
+          if (transitActive) delta += TRANSIT_STRESS * 0.1;
 
           let newC = Math.max(0, c + delta);
           if (newC >= radius) {
@@ -151,19 +115,14 @@ function App() {
     if (energyLevel <= 0 || stabilized) return;
     if (gateStatus !== 'offline') return;
 
-    // Phase 1: Antimatter injection -- particles drawn in, energy starts accumulating
     setGateStatus('injecting');
-
-    // Phase 2: After injection completes, ignite the wormhole
     setTimeout(() => {
       setGateStatus(current => {
         if (current !== 'injecting') return current;
         setStabilized(true);
-        setCurvature(radius * 0.5); // Start at moderate curvature
+        setCurvature(radius * 0.5);
         return 'igniting';
       });
-
-      // Phase 3: Wormhole fully stabilized and online
       setTimeout(() => {
         setGateStatus(current => current === 'igniting' ? 'online' : current);
       }, 3000);
@@ -171,8 +130,7 @@ function App() {
   }, [energyLevel, stabilized, gateStatus, radius]);
 
   const handleCloseWormhole = useCallback(() => {
-    if (transitActive) return; // Cannot close during active transit
-    if (gateStatus === 'offline') return;
+    if (transitActive || gateStatus === 'offline') return;
     setGateStatus('offline');
     setStabilized(false);
     setCurvature(0);
@@ -193,19 +151,14 @@ function App() {
     const pathResult = findShortestPath(sourceNode, destNode, nodeStates);
     if (pathResult.path.length === 0) { setProbeError('No path found'); return; }
 
-    // Travel energy: E_total = TE_km * D
     const travelEnergy = calculateTravelEnergy(pathResult.distanceKm);
-
-    // Cost as percentage of the energy bar
     const costPercent = (travelEnergy.energyMJ / ENERGY_CAPACITY_MJ) * 100;
 
-    // Check if enough energy (allow it even if tight -- system recharges)
     if (energyLevel < costPercent) {
       setProbeError(`Need ${costPercent.toFixed(0)}% energy (have ${energyLevel.toFixed(0)}%)`);
       return;
     }
 
-    // Deduct upfront cost
     setEnergyLevel(prev => Math.max(0, prev - costPercent));
 
     setLastPathResult(pathResult);
