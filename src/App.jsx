@@ -1,214 +1,288 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Wormhole from './components/Wormhole';
 import StarField from './components/StarField';
 import ControlPanel from './components/ControlPanel';
 import Probe from './components/Probe';
+import InfoModal from './components/InfoModal';
+import {
+  findShortestPath,
+  calculateTraversalTime,
+  calculateTravelEnergy,
+  applyTraversalLoad,
+  cooldownNodes,
+  getNodes,
+  getEdges,
+  getCoverageDistance,
+  getGateCount,
+  getTotalNodes,
+} from './lib/nodeNetwork';
 
-// Morris-Thorne Physics Constants
-const INITIAL_RADIUS = 10.0; // r_0
-const B_GROWTH_RATE = 0.05; // Gravity trying to close the throat
-const EXOTIC_FLUX = 0.3; // Negative energy density pushing b(r) down
-const MATTER_FLUX = 2.0; // Positive energy density increasing b(r) during transit
+const INITIAL_RADIUS = 10.0;
+const DECAY_RATE = 0.05;
+const STABILIZE_FLUX = 0.3;
+const TRANSIT_STRESS = 2.0;
+const INJECTION_DURATION = 2500;
+
+const ANTIMATTER_INTAKE_RATE = 0.18;  // +3.6%/sec
+const STABILIZE_DRAIN = 0.06;         // -1.2%/sec
+const TRANSIT_EXTRA_DRAIN = 0.08;     // -1.6%/sec
+
+const ENERGY_CAPACITY_MJ = 23400;     // 100% bar = 23,400 MJ
+const RECHARGE_THRESHOLD = 30;
 
 function App() {
-  // r(t): Throat Radius
-  const [radius, setRadius] = useState(INITIAL_RADIUS);
-  // b(r): Shape Function value at the throat (b(r_0))
-  const [shapeFunc, setShapeFunc] = useState(0.0);
-
-  const [exoticMatter, setExoticMatter] = useState(false);
-  const [exoticTank, setExoticTank] = useState(50.0); // Start half full to encourage harvesting
-  const [harvesting, setHarvesting] = useState(false); // Casimir Collector state
-
-  const [transitActive, setTransitActive] = useState(false); // Physics impact state
-  const [probePhase, setProbePhase] = useState('idle'); // Visual state: idle, entering, traversing, exiting
+  const [radius] = useState(INITIAL_RADIUS);
+  const [curvature, setCurvature] = useState(0.0);
+  const [stabilized, setStabilized] = useState(false);
+  const [energyLevel, setEnergyLevel] = useState(50.0);
+  const [gateStatus, setGateStatus] = useState('offline');
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [stabilityHistory, setStabilityHistory] = useState([]);
 
-  // Data history for graph
-  const [metricHistory, setMetricHistory] = useState([]);
+  const [transitActive, setTransitActive] = useState(false);
+  const [probePhase, setProbePhase] = useState('idle');
 
-  // Relativistic Physics Loop
+  // Node network
+  const [nodeStates, setNodeStates] = useState({});
+  const [sourceNode, setSourceNode] = useState('N1');
+  const [destNode, setDestNode] = useState('N5');
+  const [activePath, setActivePath] = useState([]);
+  const [lastPathResult, setLastPathResult] = useState(null);
+  const [lastTravelEnergy, setLastTravelEnergy] = useState(null);
+  const [probeError, setProbeError] = useState(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+
+  const nodes = getNodes();
+  const edges = getEdges();
+
   useEffect(() => {
     if (isCollapsed) return;
 
-    const tickRate = 50;
     const interval = setInterval(() => {
-      // Resource Management
-      setExoticTank(tank => {
+      setEnergyLevel(tank => {
         let change = 0;
 
-        // Consumption
-        if (exoticMatter) {
-          change -= 0.2;
-        }
-
-        // Harvesting (Regeneration)
-        if (harvesting) {
-          change += 0.1; // Net loss if both active (-0.1), Gain if only harvesting (+0.1)
-        }
+        const gateAlive = gateStatus === 'injecting' || gateStatus === 'igniting'
+          || gateStatus === 'online' || gateStatus === 'recharging';
+        if (gateAlive) change += ANTIMATTER_INTAKE_RATE;
+        if (stabilized) change -= STABILIZE_DRAIN;
+        if (transitActive) change -= TRANSIT_EXTRA_DRAIN;
 
         const newLevel = Math.max(0, Math.min(100, tank + change));
 
-        if (newLevel <= 0 && exoticMatter) {
-          setExoticMatter(false); // Forced cutoff
+        if (newLevel <= 0 && stabilized) {
+          setStabilized(false);
+          setGateStatus('recharging');
+        }
+
+        if (gateStatus === 'recharging' && newLevel >= RECHARGE_THRESHOLD) {
+          setStabilized(true);
+          setGateStatus('online');
         }
 
         return newLevel;
       });
 
-      setShapeFunc(b => {
-        let delta_b = B_GROWTH_RATE; // Natural gravitational tendency to close
+      const gateActive = gateStatus === 'igniting' || gateStatus === 'online' || gateStatus === 'recharging';
+      if (gateActive) {
+        setCurvature(c => {
+          let delta = DECAY_RATE;
+          if (stabilized) delta -= STABILIZE_FLUX;
+          if (transitActive) delta += TRANSIT_STRESS * 0.1;
 
-        if (exoticMatter) {
-          delta_b -= EXOTIC_FLUX; // Negative energy reduces curvature
-        }
+          let newC = Math.max(0, c + delta);
+          if (newC >= radius) {
+            setIsCollapsed(true);
+            newC = radius;
+          }
 
-        if (transitActive) {
-          delta_b += MATTER_FLUX * 0.1; // Mass adds positive curvature
-        }
-
-        // Apply change
-        let new_b = Math.max(0, b + delta_b);
-
-        // Traversable Constraint: b(r) < r
-        // If b(r) >= r, the throat pinches off (horizon forms)
-        if (new_b >= radius) {
-          setIsCollapsed(true);
-          new_b = radius; // Cap at collapse
-        }
-
-        // Update history (keep last 50 points)
-        setMetricHistory(prev => {
-          const next = [...prev, new_b];
-          if (next.length > 50) next.shift();
-          return next;
+          setStabilityHistory(prev => {
+            const next = [...prev, newC];
+            if (next.length > 50) next.shift();
+            return next;
+          });
+          return newC;
         });
+      }
 
-        return new_b;
-      });
-
-    }, tickRate);
+      setNodeStates(prev => cooldownNodes(prev));
+    }, 50);
 
     return () => clearInterval(interval);
-  }, [exoticMatter, transitActive, radius, isCollapsed]);
+  }, [stabilized, transitActive, radius, isCollapsed, gateStatus]);
 
-  const handleInjectExotic = () => {
-    if (exoticTank > 0) {
-      setExoticMatter(true);
+  const handleOpenWormhole = useCallback(() => {
+    if (energyLevel <= 0 || stabilized) return;
+    if (gateStatus !== 'offline') return;
 
-      // Ignition Logic
-      if (gateStatus === 'offline') {
-        setGateStatus('igniting');
-        setShapeFunc(radius * 0.9); // Start nearly closed, needing immediate stabilization
+    setGateStatus('injecting');
+    setTimeout(() => {
+      setGateStatus(current => {
+        if (current !== 'injecting') return current;
+        setStabilized(true);
+        setCurvature(radius * 0.5);
+        return 'igniting';
+      });
+      setTimeout(() => {
+        setGateStatus(current => current === 'igniting' ? 'online' : current);
+      }, 3000);
+    }, INJECTION_DURATION);
+  }, [energyLevel, stabilized, gateStatus, radius]);
 
-        // Sequence: 3 seconds to stabilize
-        setTimeout(() => {
-          setGateStatus(current => current === 'igniting' ? 'online' : current);
-        }, 3000);
-      }
+  const handleCloseWormhole = useCallback(() => {
+    if (transitActive || gateStatus === 'offline') return;
+    setGateStatus('offline');
+    setStabilized(false);
+    setCurvature(0);
+    setActivePath([]);
+    setLastPathResult(null);
+    setLastTravelEnergy(null);
+    setProbeError(null);
+  }, [transitActive, gateStatus]);
+
+  const handleSendProbe = useCallback(() => {
+    setProbeError(null);
+
+    if (isCollapsed) { setProbeError('System collapsed'); return; }
+    if (probePhase !== 'idle') { setProbeError('Probe in transit'); return; }
+    if (gateStatus !== 'online') { setProbeError('Gate not online'); return; }
+    if (sourceNode === destNode) { setProbeError('Same source and destination'); return; }
+
+    const pathResult = findShortestPath(sourceNode, destNode, nodeStates);
+    if (pathResult.path.length === 0) { setProbeError('No path found'); return; }
+
+    const travelEnergy = calculateTravelEnergy(pathResult.distanceKm);
+    const costPercent = (travelEnergy.energyMJ / ENERGY_CAPACITY_MJ) * 100;
+
+    if (energyLevel < costPercent) {
+      setProbeError(`Need ${costPercent.toFixed(0)}% energy (have ${energyLevel.toFixed(0)}%)`);
+      return;
     }
-  };
 
-  const handleToggleHarvest = () => {
-    setHarvesting(prev => !prev);
-  };
+    setEnergyLevel(prev => Math.max(0, prev - costPercent));
 
-  const handleSendMatter = () => {
-    if (isCollapsed || probePhase !== 'idle') return;
+    setLastPathResult(pathResult);
+    setLastTravelEnergy({ ...travelEnergy, costPercent });
+    setActivePath(pathResult.path);
+    setNodeStates(prev => applyTraversalLoad(pathResult.path, prev));
 
-    const ENTRY_DURATION = 1000;
-    const EXIT_DURATION = 1000;
+    const totalTime = calculateTraversalTime(pathResult);
+    const ENTRY_DURATION = 800;
+    const EXIT_DURATION = 800;
+    const traverseDuration = Math.min(8000, totalTime);
 
-    // Time Dilation: As b(r) approaches r, traversal takes longer.
-    // Formula: T = T_0 / (1 - b/r)
-    const ratio = shapeFunc / radius;
-    const dilationFactor = 1 / Math.max(0.01, 1 - ratio);
-    const traverseDuration = Math.min(10000, 1000 * dilationFactor); // Cap at 10s for sanity
-
-    // Start Sequence
     setProbePhase('entering');
-    setTransitActive(true); // Physics starts impacted immediately upon entry
+    setTransitActive(true);
 
-    // Sequence Timing
+    setTimeout(() => setProbePhase('traversing'), ENTRY_DURATION);
+    setTimeout(() => setProbePhase('exiting'), ENTRY_DURATION + traverseDuration);
     setTimeout(() => {
-      setProbePhase('traversing'); // Probe hidden in tunnel
-    }, ENTRY_DURATION);
-
-    setTimeout(() => {
-      setProbePhase('exiting'); // Probe pops out
-    }, ENTRY_DURATION + traverseDuration);
-
-    setTimeout(() => {
-      setProbePhase('idle'); // Done
-      setTransitActive(false); // Physics impact ends
+      setProbePhase('idle');
+      setTransitActive(false);
+      setActivePath([]);
     }, ENTRY_DURATION + traverseDuration + EXIT_DURATION);
-  };
+  }, [isCollapsed, probePhase, gateStatus, sourceNode, destNode, nodeStates, energyLevel]);
 
-  const handleReset = () => {
+  const handleSelectNode = useCallback((nodeId) => {
+    if (transitActive) return;
+    if (nodeId === sourceNode) {
+      setSourceNode(destNode);
+      setDestNode(sourceNode);
+    } else {
+      setDestNode(nodeId);
+    }
+  }, [transitActive, sourceNode, destNode]);
+
+  const handleReset = useCallback(() => {
     setIsCollapsed(false);
-    setShapeFunc(0.0);
-    setRadius(INITIAL_RADIUS);
-    setExoticMatter(false);
+    setCurvature(0.0);
+    setStabilized(false);
     setTransitActive(false);
     setProbePhase('idle');
-    setExoticTank(50.0);
-    setHarvesting(false);
+    setEnergyLevel(50.0);
     setGateStatus('offline');
-  };
+    setNodeStates({});
+    setActivePath([]);
+    setLastPathResult(null);
+    setLastTravelEnergy(null);
+    setProbeError(null);
+  }, []);
 
-  // derived state for visualization
-  // ratio = b(r)/r. 0 = safe, 1 = collapse
-  const constrictionRatio = isCollapsed ? 1 : shapeFunc / radius;
-
-  // Decide what phase to tell components
+  const constrictionRatio = isCollapsed ? 1 : curvature / radius;
   const wormholePhase = isCollapsed ? 'collapsed' : gateStatus;
 
   return (
-    <>
+    <div className="app-root">
       <StarField />
-      <h1>Wormhole Gateway</h1>
+      <div className="app-title-bar">
+        <h1>Wormhole Gateway</h1>
+        <button
+          className="info-trigger"
+          onClick={() => setInfoOpen(true)}
+          aria-label="View documentation"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="9" cy="9" r="7.5" />
+            <line x1="9" y1="8" x2="9" y2="13" />
+            <circle cx="9" cy="5.5" r="0.5" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+      </div>
+
+      <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
 
       <div className="wormhole-container">
         <Probe phase={probePhase} />
 
-        {/* Left Wormhole */}
-        <Gate>
-          <Wormhole
-            color={isCollapsed ? '#ff0000' : "#08CB00"}
-            size={`min(${280 * (1 - constrictionRatio * 0.5)}px, 40vw)`}
-            constriction={constrictionRatio}
-            isCollapsed={isCollapsed}
-            phase={wormholePhase}
-          />
-        </Gate>
+        <Wormhole
+          constriction={constrictionRatio}
+          isCollapsed={isCollapsed}
+          phase={wormholePhase}
+          side="entry"
+          label={`Node ${sourceNode}`}
+        />
 
-        <Gate>
-          <Wormhole
-            color={isCollapsed ? '#ff0000' : "#08CB00"}
-            size={`min(${280 * (1 - constrictionRatio * 0.5)}px, 40vw)`}
-            constriction={constrictionRatio}
-            isCollapsed={isCollapsed}
-            phase={wormholePhase}
-          />
-        </Gate>
+        <div className="wormhole-tunnel">
+          <div className="tunnel-line" data-active={transitActive || gateStatus === 'online'} />
+        </div>
+
+        <Wormhole
+          constriction={constrictionRatio}
+          isCollapsed={isCollapsed}
+          phase={wormholePhase}
+          side="exit"
+          label={`Node ${destNode}`}
+        />
       </div>
 
       <ControlPanel
         radius={radius}
-        shapeFunc={shapeFunc}
-        exoticMatter={exoticMatter}
-        exoticTank={exoticTank}
-        metricHistory={metricHistory}
-        harvesting={harvesting}
-        onInjectExotic={handleInjectExotic}
-        onSendMatter={handleSendMatter}
-        onToggleHarvest={handleToggleHarvest}
-        onReset={handleReset}
+        curvature={curvature}
+        stabilized={stabilized}
+        energyLevel={energyLevel}
+        stabilityHistory={stabilityHistory}
+        gateStatus={gateStatus}
         isCollapsed={isCollapsed}
         transitActive={transitActive}
-        gateStatus={gateStatus}
+        onOpenWormhole={handleOpenWormhole}
+        onCloseWormhole={handleCloseWormhole}
+        onSendProbe={handleSendProbe}
+        onReset={handleReset}
+        nodes={nodes}
+        edges={edges}
+        nodeStates={nodeStates}
+        activePath={activePath}
+        sourceNode={sourceNode}
+        destNode={destNode}
+        onSelectNode={handleSelectNode}
+        lastPathResult={lastPathResult}
+        lastTravelEnergy={lastTravelEnergy}
+        probeError={probeError}
+        totalNodes={getTotalNodes()}
+        gateCount={getGateCount()}
+        coverageDistance={getCoverageDistance()}
       />
-    </>
+    </div>
   );
 }
 
