@@ -260,6 +260,21 @@ h1 {
   background: #004444;
 }
 
+.cp-btn-close {
+  flex: 1;
+  background: #883333;
+  color: #fff;
+}
+
+.cp-btn-close:hover:not(:disabled) {
+  background: #aa4444;
+}
+
+.cp-btn-close:disabled {
+  background: #442222;
+  color: #886666;
+}
+
 .cp-btn-send {
   flex: 1;
   background: #6633aa;

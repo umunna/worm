@@ -12,6 +12,7 @@ const ControlPanel = ({
   isCollapsed,
   transitActive,
   onOpenWormhole,
+  onCloseWormhole,
   onSendProbe,
   onReset,
   nodes,
@@ -93,23 +94,29 @@ const ControlPanel = ({
 
       {/* Buttons */}
       <div className="cp-actions">
-        <button
-          className="cp-btn cp-btn-primary"
-          onClick={onOpenWormhole}
-          disabled={gateStatus !== 'offline' || energyLevel <= 0}
-        >
-          {energyLevel <= 0
-            ? 'NO ENERGY'
-            : gateStatus === 'injecting'
+        {gateStatus === 'offline' ? (
+          <button
+            className="cp-btn cp-btn-primary"
+            onClick={onOpenWormhole}
+            disabled={energyLevel <= 0}
+          >
+            {energyLevel <= 0 ? 'NO ENERGY' : 'OPEN WORMHOLE'}
+          </button>
+        ) : (
+          <button
+            className="cp-btn cp-btn-close"
+            onClick={onCloseWormhole}
+            disabled={transitActive || gateStatus === 'injecting' || gateStatus === 'igniting'}
+          >
+            {gateStatus === 'injecting'
               ? 'INJECTING...'
               : gateStatus === 'igniting'
                 ? 'OPENING...'
                 : gateStatus === 'recharging'
                   ? `RECHARGING ${energyLevel.toFixed(0)}%`
-                  : gateStatus === 'online'
-                    ? 'STABILIZED'
-                    : 'OPEN WORMHOLE'}
-        </button>
+                  : 'CLOSE WORMHOLE'}
+          </button>
+        )}
 
         <button
           className="cp-btn cp-btn-send"

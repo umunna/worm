@@ -168,6 +168,18 @@ function App() {
     }, INJECTION_DURATION);
   }, [energyLevel, stabilized, gateStatus, radius]);
 
+  const handleCloseWormhole = useCallback(() => {
+    if (transitActive) return; // Cannot close during active transit
+    if (gateStatus === 'offline') return;
+    setGateStatus('offline');
+    setStabilized(false);
+    setCurvature(0);
+    setActivePath([]);
+    setLastPathResult(null);
+    setLastTravelEnergy(null);
+    setProbeError(null);
+  }, [transitActive, gateStatus]);
+
   const handleSendProbe = useCallback(() => {
     setProbeError(null);
 
@@ -283,6 +295,7 @@ function App() {
         isCollapsed={isCollapsed}
         transitActive={transitActive}
         onOpenWormhole={handleOpenWormhole}
+        onCloseWormhole={handleCloseWormhole}
         onSendProbe={handleSendProbe}
         onReset={handleReset}
         nodes={nodes}
