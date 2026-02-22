@@ -11,8 +11,12 @@ import {
   cooldownNodes,
   getNodes,
   getEdges,
-  D_GATE,
+  getCoverageDistance,
+  getGateCount,
+  getTotalNodes,
   TE_KM,
+  NODES_PER_GATE,
+  NODE_SPACING_KM,
 } from './lib/nodeNetwork';
 
 // Physics constants
@@ -20,15 +24,27 @@ const INITIAL_RADIUS = 10.0;
 const DECAY_RATE = 0.05;
 const STABILIZE_FLUX = 0.3;
 const TRANSIT_STRESS = 2.0;
-const ANTIMATTER_INTAKE_RATE = 0.12; // Slower intake: +2.4%/sec
-const STABILIZE_DRAIN = 0.1;          // Constant drain when stabilized: -2%/sec
-const INJECTION_DURATION = 2500;       // ms for antimatter injection phase
+const INJECTION_DURATION = 2500;
 
-// Energy scaling: map PDF's E_total = TE_km * D into the 0-100 energy bar.
-// Full gate coverage D_GATE = 70 km costs TE_KM * D_GATE = 9100 MJ.
-// We define that as 100% of the bar's capacity.
-const GATE_ENERGY_CAPACITY_MJ = TE_KM * D_GATE; // 9100 MJ = 100% bar
-const RECHARGE_THRESHOLD = 30; // % energy needed before stabilization can resume
+// Energy rates (per 50ms tick, 20 ticks/sec):
+//   Intake:          +0.18/tick = +3.6%/sec
+//   Stabilize drain: -0.06/tick = -1.2%/sec
+//   Transit drain:   -0.08/tick = -1.6%/sec  (on top of stabilize)
+//
+// Net idle (online):      +0.12/tick = +2.4%/sec  (steady recharge)
+// Net transit (online):   +0.04/tick = +0.8%/sec  (still positive but slow)
+const ANTIMATTER_INTAKE_RATE = 0.18;
+const STABILIZE_DRAIN = 0.06;
+const TRANSIT_EXTRA_DRAIN = 0.08;
+
+// Energy cost per probe: percentage of the 100% bar.
+// Each km costs TE_KM (130 MJ). We scale so 1 gate (70 km) maps
+// to a GENEROUS capacity so you can send ~5-8 probes per full bar.
+// 100% bar = 5 * E_total_max_path.  Max single-gate path ~36 km = 4680 MJ.
+// So 100% = 5 * 4680 = 23400 MJ.  A 28 km trip costs (130*28/23400)*100 = 15.6%.
+const ENERGY_CAPACITY_MJ = 23400;
+
+const RECHARGE_THRESHOLD = 30;
 
 function App() {
   const [radius] = useState(INITIAL_RADIUS);
@@ -49,6 +65,7 @@ function App() {
   const [activePath, setActivePath] = useState([]);
   const [lastPathResult, setLastPathResult] = useState(null);
   const [lastTravelEnergy, setLastTravelEnergy] = useState(null);
+  const [probeError, setProbeError] = useState(null);
 
   const nodes = getNodes();
   const edges = getEdges();
@@ -64,34 +81,32 @@ function App() {
       setEnergyLevel(tank => {
         let change = 0;
 
-        // Antimatter auto-intake: draws from atmosphere while gate is in any active state
-        // This includes 'recharging' -- the wormhole still exists, antimatter is still being drawn
+        // Antimatter auto-intake while gate is alive (including recharging)
         const gateAlive = gateStatus === 'injecting' || gateStatus === 'igniting'
           || gateStatus === 'online' || gateStatus === 'recharging';
         if (gateAlive) {
-          change += ANTIMATTER_INTAKE_RATE;
+          change += ANTIMATTER_INTAKE_RATE; // +3.6%/sec
         }
 
-        // Stabilization drain only when actively stabilized (not during recharge)
+        // Stabilization drain (only when actively stabilized)
         if (stabilized) {
-          change -= STABILIZE_DRAIN;
+          change -= STABILIZE_DRAIN; // -1.2%/sec
         }
 
         // Transit extra drain
         if (transitActive) {
-          change -= 0.15;
+          change -= TRANSIT_EXTRA_DRAIN; // -1.6%/sec
         }
 
         const newLevel = Math.max(0, Math.min(100, tank + change));
 
-        // Energy depleted while stabilized: enter recharging mode (don't kill the gate)
+        // Energy depleted: enter recharging mode (gate stays alive)
         if (newLevel <= 0 && stabilized) {
           setStabilized(false);
           setGateStatus('recharging');
-          // Curvature stays where it is -- the wormhole is still there, just unstable
         }
 
-        // Recharging complete: auto-resume stabilization once threshold reached
+        // Recharging complete: auto-resume
         if (gateStatus === 'recharging' && newLevel >= RECHARGE_THRESHOLD) {
           setStabilized(true);
           setGateStatus('online');
@@ -154,23 +169,29 @@ function App() {
   }, [energyLevel, stabilized, gateStatus, radius]);
 
   const handleSendProbe = useCallback(() => {
-    if (isCollapsed || probePhase !== 'idle' || gateStatus !== 'online') return;
-    if (sourceNode === destNode) return;
+    setProbeError(null);
+
+    if (isCollapsed) { setProbeError('System collapsed'); return; }
+    if (probePhase !== 'idle') { setProbeError('Probe in transit'); return; }
+    if (gateStatus !== 'online') { setProbeError('Gate not online'); return; }
+    if (sourceNode === destNode) { setProbeError('Same source and destination'); return; }
 
     const pathResult = findShortestPath(sourceNode, destNode, nodeStates);
-    if (pathResult.path.length === 0) return;
+    if (pathResult.path.length === 0) { setProbeError('No path found'); return; }
 
-    // Calculate travel energy from PDF formula: E_total = TE_km * D
+    // Travel energy: E_total = TE_km * D
     const travelEnergy = calculateTravelEnergy(pathResult.distanceKm);
 
-    // Upfront energy cost: convert MJ to bar percentage
-    // E_total (MJ) / GATE_CAPACITY (MJ) * 100 = percentage of bar
-    const costPercent = (travelEnergy.energyMJ / GATE_ENERGY_CAPACITY_MJ) * 100;
+    // Cost as percentage of the energy bar
+    const costPercent = (travelEnergy.energyMJ / ENERGY_CAPACITY_MJ) * 100;
 
-    // Check if there is enough energy for this trip
-    if (energyLevel < costPercent) return;
+    // Check if enough energy (allow it even if tight -- system recharges)
+    if (energyLevel < costPercent) {
+      setProbeError(`Need ${costPercent.toFixed(0)}% energy (have ${energyLevel.toFixed(0)}%)`);
+      return;
+    }
 
-    // Deduct energy immediately
+    // Deduct upfront cost
     setEnergyLevel(prev => Math.max(0, prev - costPercent));
 
     setLastPathResult(pathResult);
@@ -217,6 +238,7 @@ function App() {
     setActivePath([]);
     setLastPathResult(null);
     setLastTravelEnergy(null);
+    setProbeError(null);
   }, []);
 
   const constrictionRatio = isCollapsed ? 1 : curvature / radius;
@@ -272,6 +294,10 @@ function App() {
         onSelectNode={handleSelectNode}
         lastPathResult={lastPathResult}
         lastTravelEnergy={lastTravelEnergy}
+        probeError={probeError}
+        totalNodes={getTotalNodes()}
+        gateCount={getGateCount()}
+        coverageDistance={getCoverageDistance()}
       />
     </div>
   );

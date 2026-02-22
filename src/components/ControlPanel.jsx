@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import NodeMap from './NodeMap';
-import { D_GATE, TE_KM, NODES_PER_GATE, NODE_SPACING_KM } from '../lib/nodeNetwork';
+import { TE_KM, NODES_PER_GATE, NODE_SPACING_KM } from '../lib/nodeNetwork';
 
 const ControlPanel = ({
   radius,
@@ -23,6 +23,10 @@ const ControlPanel = ({
   onSelectNode,
   lastPathResult,
   lastTravelEnergy,
+  probeError,
+  totalNodes,
+  gateCount,
+  coverageDistance,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const ratio = curvature / radius;
@@ -114,6 +118,10 @@ const ControlPanel = ({
         >
           {transitActive ? 'IN TRANSIT...' : `SEND ${sourceNode} \u2192 ${destNode}`}
         </button>
+
+        {probeError && (
+          <div className="cp-probe-error">{probeError}</div>
+        )}
       </div>
 
       {/* Travel energy readout (shows after a send) */}
@@ -184,8 +192,16 @@ const ControlPanel = ({
               <span className="cp-stat-value">{lastPathResult ? lastPathResult.hops : '-'}</span>
             </div>
             <div className="cp-stat">
-              <span className="cp-stat-label">Gate Coverage</span>
-              <span className="cp-stat-value">{D_GATE} km</span>
+              <span className="cp-stat-label">Gates</span>
+              <span className="cp-stat-value">{gateCount}</span>
+            </div>
+            <div className="cp-stat">
+              <span className="cp-stat-label">Total Nodes</span>
+              <span className="cp-stat-value">{totalNodes.toLocaleString()}</span>
+            </div>
+            <div className="cp-stat">
+              <span className="cp-stat-label">Coverage (D)</span>
+              <span className="cp-stat-value">{coverageDistance.toLocaleString()} km</span>
             </div>
             <div className="cp-stat">
               <span className="cp-stat-label">TE Constant</span>
@@ -197,7 +213,8 @@ const ControlPanel = ({
           <div className="cp-topology-info">
             <span>{NODES_PER_GATE} nodes/gate</span>
             <span>{NODE_SPACING_KM} km spacing</span>
-            <span>D = {D_GATE} km</span>
+            <span>{gateCount} gate{gateCount > 1 ? 's' : ''}</span>
+            <span>D = {coverageDistance.toLocaleString()} km</span>
           </div>
 
           {/* Node Map */}
