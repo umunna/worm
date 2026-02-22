@@ -124,7 +124,7 @@ const SECTIONS = [
     ]
   },
   {
-    title: 'Curvature & Stability',
+    title: 'Curvature',
     content: [
       {
         heading: 'Physics Loop',
@@ -260,6 +260,11 @@ export default function InfoModal({ isOpen, onClose }) {
               )}
             </div>
           ))}
+        </div>
+
+        {/* Footer */}
+        <div className="info-footer">
+          <p>2026 © nkthediligent</p>
         </div>
       </div>
     </div>
