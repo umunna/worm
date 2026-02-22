@@ -45,17 +45,87 @@ const Wormhole = ({ constriction = 0, isCollapsed, phase = 'offline', side = 'en
 
       ctx.clearRect(0, 0, SIZE, SIZE);
 
+      // --- OFFLINE: dormant ring ---
       if (phase === 'offline') {
         ctx.beginPath();
         ctx.ellipse(cx, cy, R * 0.3, R * 0.15, 0, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(80, 120, 180, 0.3)';
         ctx.lineWidth = 2;
         ctx.stroke();
+
+        // Faint label hint
+        ctx.fillStyle = 'rgba(80, 120, 180, 0.15)';
+        ctx.font = `${SIZE * 0.035}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('DORMANT', cx, cy + R * 0.3);
+
         animRef.current = requestAnimationFrame(render);
         return;
       }
 
-      const ignitionProgress = phase === 'igniting' ? Math.min(1, t * 0.33) : 1;
+      // --- INJECTING: antimatter particles streaming inward ---
+      if (phase === 'injecting') {
+        // Pulsing center glow that grows
+        const pulseAlpha = 0.15 + Math.sin(t * 4) * 0.1;
+        const growRadius = R * 0.3 + Math.sin(t * 2) * R * 0.05;
+        const centerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, growRadius);
+        centerGrad.addColorStop(0, `rgba(0, 180, 255, ${pulseAlpha})`);
+        centerGrad.addColorStop(0.6, `rgba(0, 80, 200, ${pulseAlpha * 0.4})`);
+        centerGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = centerGrad;
+        ctx.fillRect(0, 0, SIZE, SIZE);
+
+        // Antimatter particles streaming inward from all directions
+        const particleCount = 28;
+        for (let i = 0; i < particleCount; i++) {
+          const baseAngle = (i / particleCount) * Math.PI * 2;
+          const speed = 0.6 + (i % 3) * 0.2;
+          const progress = ((t * speed + i * 0.37) % 1.0);
+          const dist = R * 1.4 * (1 - progress);
+          const px = cx + Math.cos(baseAngle + t * 0.1) * dist;
+          const py = cy + Math.sin(baseAngle + t * 0.1) * dist * 0.6;
+          const pSize = 1.5 + progress * 2;
+          const pAlpha = progress * 0.8;
+
+          ctx.beginPath();
+          ctx.arc(px, py, pSize, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(100, 200, 255, ${pAlpha})`;
+          ctx.fill();
+
+          // Particle trail
+          const trailLen = 3;
+          for (let tr = 1; tr <= trailLen; tr++) {
+            const trailProgress = Math.max(0, progress - tr * 0.04);
+            const trailDist = R * 1.4 * (1 - trailProgress);
+            const tx = cx + Math.cos(baseAngle + t * 0.1) * trailDist;
+            const ty = cy + Math.sin(baseAngle + t * 0.1) * trailDist * 0.6;
+            ctx.beginPath();
+            ctx.arc(tx, ty, pSize * (1 - tr * 0.25), 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(100, 200, 255, ${pAlpha * (1 - tr * 0.3)})`;
+            ctx.fill();
+          }
+        }
+
+        // Growing ring outline
+        const ringAlpha = 0.3 + Math.sin(t * 3) * 0.15;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, R * 0.35, R * 0.18, 0, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0, 200, 255, ${ringAlpha})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = `rgba(0, 200, 255, ${0.4 + Math.sin(t * 3) * 0.2})`;
+        ctx.font = `${SIZE * 0.032}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('INJECTING', cx, cy + R * 0.35);
+
+        animRef.current = requestAnimationFrame(render);
+        return;
+      }
+
+      // --- IGNITING / ONLINE / COLLAPSED: full torus ---
+      const ignitionProgress = phase === 'igniting' ? Math.min(1, (t - 0) * 0.33) : 1;
       const collapseGlow = isCollapsed ? 0.3 + Math.sin(t * 8) * 0.2 : 0;
 
       const tiltAngle = 0.4;
@@ -77,28 +147,49 @@ const Wormhole = ({ constriction = 0, isCollapsed, phase = 'offline', side = 'en
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, SIZE, SIZE);
 
-      // Magnetic field lines
-      const fieldLineCount = 8;
-      ctx.globalAlpha = 0.12 * ignitionProgress;
+      // Magnetic field lines -- sweeping curves extending outward
+      const fieldLineCount = 14;
       for (let i = 0; i < fieldLineCount; i++) {
-        const angle = (i / fieldLineCount) * Math.PI * 2 + t * 0.2;
-        const startX = cx + Math.cos(angle) * R * 0.9;
+        const angle = (i / fieldLineCount) * Math.PI * 2 + t * 0.15;
+        const startX = cx + Math.cos(angle) * R * 0.95;
         const startY = cy + Math.sin(angle) * R * 0.5 * cosA;
-        const ext = R * 0.8 + Math.sin(t + i) * 20;
+        const ext = R * 0.6 + Math.sin(t * 0.8 + i * 0.9) * R * 0.25;
+        const endAngle = angle + 0.6;
 
         ctx.beginPath();
         ctx.moveTo(startX, startY);
         ctx.quadraticCurveTo(
-          cx + Math.cos(angle) * (R + ext),
-          cy + Math.sin(angle) * (R + ext) * 0.5,
-          cx + Math.cos(angle + 0.5) * R * 0.9,
-          cy + Math.sin(angle + 0.5) * R * 0.5 * cosA
+          cx + Math.cos(angle + 0.3) * (R + ext),
+          cy + Math.sin(angle + 0.3) * (R + ext) * 0.5,
+          cx + Math.cos(endAngle) * R * 0.95,
+          cy + Math.sin(endAngle) * R * 0.5 * cosA
         );
-        ctx.strokeStyle = isCollapsed ? '#ff4444' : '#8ab8ff';
-        ctx.lineWidth = 1;
+        const lineAlpha = (0.2 + Math.sin(t + i * 0.7) * 0.08) * ignitionProgress;
+        ctx.strokeStyle = isCollapsed
+          ? `rgba(255, 68, 68, ${lineAlpha})`
+          : `rgba(138, 184, 255, ${lineAlpha})`;
+        ctx.lineWidth = 1.2;
         ctx.stroke();
       }
-      ctx.globalAlpha = 1;
+
+      // Glowing dots along field lines
+      const dotCount = 20;
+      for (let i = 0; i < dotCount; i++) {
+        const dotAngle = (i / dotCount) * Math.PI * 2 + t * 0.3;
+        const wobble = Math.sin(t * 1.5 + i * 1.1) * R * 0.15;
+        const dotR = R * 1.0 + wobble;
+        const dx = cx + Math.cos(dotAngle) * dotR;
+        const dy = cy + Math.sin(dotAngle) * dotR * 0.48 * cosA;
+        const dotAlpha = (0.3 + Math.sin(t * 2.5 + i * 0.8) * 0.25) * ignitionProgress;
+        const dotSize = 1.5 + Math.sin(t * 2 + i) * 0.8;
+
+        ctx.beginPath();
+        ctx.arc(dx, dy, dotSize, 0, Math.PI * 2);
+        ctx.fillStyle = isCollapsed
+          ? `rgba(255, 100, 80, ${dotAlpha})`
+          : `rgba(150, 210, 255, ${dotAlpha})`;
+        ctx.fill();
+      }
 
       const ringCount = 48;
       const flowLineCount = 24;
@@ -140,18 +231,21 @@ const Wormhole = ({ constriction = 0, isCollapsed, phase = 'offline', side = 'en
       drawTorusHalf(ctx, cx, cy, R, r, ringCount, flowLineCount, t, cosA, sinA,
         ignitionProgress, constriction, isCollapsed, collapseGlow, 'front', side);
 
-      // Bright spots
-      if (!isCollapsed && phase === 'online') {
-        for (let i = 0; i < 2; i++) {
-          const spotAngle = t * 0.3 + i * Math.PI;
+      // Bright accent spots -- magnetic hotspots
+      if (!isCollapsed && (phase === 'online' || phase === 'igniting')) {
+        const spotCount = phase === 'online' ? 3 : 2;
+        for (let i = 0; i < spotCount; i++) {
+          const spotAngle = t * 0.25 + i * (Math.PI * 2 / spotCount);
           const sx = cx + Math.cos(spotAngle) * R * 1.05;
           const sy = cy + Math.sin(spotAngle) * R * 0.5 * cosA;
-          const spotGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, 8);
-          spotGrad.addColorStop(0, 'rgba(255, 200, 255, 0.9)');
-          spotGrad.addColorStop(0.3, 'rgba(200, 100, 255, 0.4)');
-          spotGrad.addColorStop(1, 'rgba(100, 50, 200, 0)');
+          const spotSize = 10 + Math.sin(t * 3 + i) * 3;
+          const spotGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, spotSize);
+          spotGrad.addColorStop(0, 'rgba(255, 220, 255, 0.95)');
+          spotGrad.addColorStop(0.25, 'rgba(200, 120, 255, 0.5)');
+          spotGrad.addColorStop(0.6, 'rgba(100, 60, 220, 0.15)');
+          spotGrad.addColorStop(1, 'rgba(60, 30, 160, 0)');
           ctx.fillStyle = spotGrad;
-          ctx.fillRect(sx - 8, sy - 8, 16, 16);
+          ctx.fillRect(sx - spotSize, sy - spotSize, spotSize * 2, spotSize * 2);
         }
       }
 

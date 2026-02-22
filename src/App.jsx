@@ -18,7 +18,8 @@ const INITIAL_RADIUS = 10.0;
 const DECAY_RATE = 0.05;
 const STABILIZE_FLUX = 0.3;
 const TRANSIT_STRESS = 2.0;
-const ANTIMATTER_INTAKE_RATE = 0.15;
+const ANTIMATTER_INTAKE_RATE = 0.25; // Covers stabilization cost (0.2) with surplus
+const INJECTION_DURATION = 2500; // ms for antimatter injection phase
 
 function App() {
   const [radius] = useState(INITIAL_RADIUS);
@@ -43,42 +44,67 @@ function App() {
   const nodes = getNodes();
   const edges = getEdges();
 
-  // Physics loop: once wormhole opens, antimatter is sucked in from atmosphere
-  // creating curvature for stabilization. No manual recharge.
+  // Physics loop: antimatter is drawn from the atmosphere once wormhole is active.
+  // This intake creates the curvature needed for stabilization.
+  // Energy only drains during active stabilization; intake covers the cost.
+  // Transit puts extra stress on the system, temporarily increasing drain.
   useEffect(() => {
     if (isCollapsed) return;
 
     const interval = setInterval(() => {
       setEnergyLevel(tank => {
         let change = 0;
-        if (stabilized) change -= 0.2;
-        // Antimatter auto-intake once wormhole is active
-        if (gateStatus === 'online' || gateStatus === 'igniting') {
+
+        // Antimatter auto-intake: starts during injection and continues while gate is active
+        const gateActive = gateStatus === 'injecting' || gateStatus === 'igniting' || gateStatus === 'online';
+        if (gateActive) {
           change += ANTIMATTER_INTAKE_RATE;
         }
+
+        // Stabilization consumes energy only when actively stabilized
+        if (stabilized) {
+          change -= 0.2;
+        }
+
+        // Transit puts additional stress
+        if (transitActive) {
+          change -= 0.08;
+        }
+
         const newLevel = Math.max(0, Math.min(100, tank + change));
-        if (newLevel <= 0 && stabilized) setStabilized(false);
+
+        // If energy depleted while stabilized, shut everything down
+        if (newLevel <= 0 && stabilized) {
+          setStabilized(false);
+          setGateStatus('offline');
+          setCurvature(0);
+        }
+
         return newLevel;
       });
 
-      setCurvature(c => {
-        let delta = DECAY_RATE;
-        if (stabilized) delta -= STABILIZE_FLUX;
-        if (transitActive) delta += TRANSIT_STRESS * 0.1;
+      // Curvature only changes when gate is active
+      const gateActive = gateStatus === 'igniting' || gateStatus === 'online';
+      if (gateActive) {
+        setCurvature(c => {
+          let delta = DECAY_RATE; // Natural tendency to close
+          if (stabilized) delta -= STABILIZE_FLUX; // Stabilizer counteracts
+          if (transitActive) delta += TRANSIT_STRESS * 0.1; // Transit stress
 
-        let newC = Math.max(0, c + delta);
-        if (newC >= radius) {
-          setIsCollapsed(true);
-          newC = radius;
-        }
+          let newC = Math.max(0, c + delta);
+          if (newC >= radius) {
+            setIsCollapsed(true);
+            newC = radius;
+          }
 
-        setStabilityHistory(prev => {
-          const next = [...prev, newC];
-          if (next.length > 50) next.shift();
-          return next;
+          setStabilityHistory(prev => {
+            const next = [...prev, newC];
+            if (next.length > 50) next.shift();
+            return next;
+          });
+          return newC;
         });
-        return newC;
-      });
+      }
 
       setNodeStates(prev => cooldownNodes(prev));
     }, 50);
@@ -87,16 +113,26 @@ function App() {
   }, [stabilized, transitActive, radius, isCollapsed, gateStatus]);
 
   const handleOpenWormhole = useCallback(() => {
-    if (energyLevel > 0 && !stabilized) {
-      setStabilized(true);
-      if (gateStatus === 'offline') {
-        setGateStatus('igniting');
-        setCurvature(radius * 0.9);
-        setTimeout(() => {
-          setGateStatus(current => current === 'igniting' ? 'online' : current);
-        }, 3000);
-      }
-    }
+    if (energyLevel <= 0 || stabilized) return;
+    if (gateStatus !== 'offline') return;
+
+    // Phase 1: Antimatter injection -- particles drawn in, energy starts accumulating
+    setGateStatus('injecting');
+
+    // Phase 2: After injection completes, ignite the wormhole
+    setTimeout(() => {
+      setGateStatus(current => {
+        if (current !== 'injecting') return current;
+        setStabilized(true);
+        setCurvature(radius * 0.5); // Start at moderate curvature
+        return 'igniting';
+      });
+
+      // Phase 3: Wormhole fully stabilized and online
+      setTimeout(() => {
+        setGateStatus(current => current === 'igniting' ? 'online' : current);
+      }, 3000);
+    }, INJECTION_DURATION);
   }, [energyLevel, stabilized, gateStatus, radius]);
 
   const handleSendProbe = useCallback(() => {

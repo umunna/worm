@@ -49,7 +49,7 @@ const ControlPanel = ({
             className="cp-status"
             style={{ color: isStable && !isCollapsed ? '#00ff88' : '#ff4444' }}
           >
-            {isCollapsed ? 'COLLAPSED' : isOnline ? 'STABLE' : gateStatus === 'igniting' ? 'OPENING' : 'OFFLINE'}
+            {isCollapsed ? 'COLLAPSED' : isOnline ? 'STABLE' : gateStatus === 'igniting' ? 'OPENING' : gateStatus === 'injecting' ? 'INJECTING' : 'OFFLINE'}
           </span>
           <button className="cp-expand-btn" onClick={() => setExpanded(!expanded)}>
             {expanded ? 'Less' : 'More'}
@@ -62,8 +62,10 @@ const ControlPanel = ({
         <div className="cp-energy-labels">
           <span>
             Energy
-            {(gateStatus === 'online' || gateStatus === 'igniting') && (
-              <span className="cp-intake-badge">INTAKE ACTIVE</span>
+            {(gateStatus === 'injecting' || gateStatus === 'igniting' || gateStatus === 'online') && (
+              <span className="cp-intake-badge">
+                {gateStatus === 'injecting' ? 'ANTIMATTER INJECTING' : 'INTAKE ACTIVE'}
+              </span>
             )}
           </span>
           <span style={{ color: energyLevel < 20 ? '#ff4444' : '#00ccff' }}>
@@ -87,15 +89,17 @@ const ControlPanel = ({
         <button
           className="cp-btn cp-btn-primary"
           onClick={onOpenWormhole}
-          disabled={stabilized || energyLevel <= 0}
+          disabled={gateStatus !== 'offline' || energyLevel <= 0}
         >
           {energyLevel <= 0
             ? 'NO ENERGY'
-            : gateStatus === 'igniting'
-              ? 'OPENING...'
-              : gateStatus === 'online'
-                ? 'STABILIZED'
-                : 'OPEN WORMHOLE'}
+            : gateStatus === 'injecting'
+              ? 'INJECTING...'
+              : gateStatus === 'igniting'
+                ? 'OPENING...'
+                : gateStatus === 'online'
+                  ? 'STABILIZED'
+                  : 'OPEN WORMHOLE'}
         </button>
 
         <button
