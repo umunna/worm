@@ -3,6 +3,7 @@ import Wormhole from './components/Wormhole';
 import StarField from './components/StarField';
 import ControlPanel from './components/ControlPanel';
 import Probe from './components/Probe';
+import InfoModal from './components/InfoModal';
 import {
   findShortestPath,
   calculateTraversalTime,
@@ -66,6 +67,7 @@ function App() {
   const [lastPathResult, setLastPathResult] = useState(null);
   const [lastTravelEnergy, setLastTravelEnergy] = useState(null);
   const [probeError, setProbeError] = useState(null);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const nodes = getNodes();
   const edges = getEdges();
@@ -259,7 +261,22 @@ function App() {
   return (
     <div className="app-root">
       <StarField />
-      <h1>Wormhole Gateway</h1>
+      <div className="app-title-bar">
+        <h1>Wormhole Gateway</h1>
+        <button
+          className="info-trigger"
+          onClick={() => setInfoOpen(true)}
+          aria-label="View documentation"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="9" cy="9" r="7.5" />
+            <line x1="9" y1="8" x2="9" y2="13" />
+            <circle cx="9" cy="5.5" r="0.5" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+      </div>
+
+      <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} />
 
       <div className="wormhole-container">
         <Probe phase={probePhase} />
