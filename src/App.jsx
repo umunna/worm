@@ -11,6 +11,8 @@ import {
   cooldownNodes,
   getNodes,
   getEdges,
+  D_GATE,
+  TE_KM,
 } from './lib/nodeNetwork';
 
 // Physics constants
@@ -18,8 +20,14 @@ const INITIAL_RADIUS = 10.0;
 const DECAY_RATE = 0.05;
 const STABILIZE_FLUX = 0.3;
 const TRANSIT_STRESS = 2.0;
-const ANTIMATTER_INTAKE_RATE = 0.25; // Covers stabilization cost (0.2) with surplus
-const INJECTION_DURATION = 2500; // ms for antimatter injection phase
+const ANTIMATTER_INTAKE_RATE = 0.12; // Slower intake: +2.4%/sec
+const STABILIZE_DRAIN = 0.1;          // Constant drain when stabilized: -2%/sec
+const INJECTION_DURATION = 2500;       // ms for antimatter injection phase
+
+// Energy scaling: map PDF's E_total = TE_km * D into the 0-100 energy bar.
+// Full gate coverage D_GATE = 70 km costs TE_KM * D_GATE = 9100 MJ.
+// We define that as 100% of the bar's capacity.
+const GATE_ENERGY_CAPACITY_MJ = TE_KM * D_GATE; // 9100 MJ = 100% bar
 
 function App() {
   const [radius] = useState(INITIAL_RADIUS);
@@ -55,25 +63,31 @@ function App() {
       setEnergyLevel(tank => {
         let change = 0;
 
-        // Antimatter auto-intake: starts during injection and continues while gate is active
+        // Antimatter auto-intake: draws from atmosphere while gate is active
+        // Rate: +0.12/tick = +2.4%/sec  (slow, deliberate accumulation)
         const gateActive = gateStatus === 'injecting' || gateStatus === 'igniting' || gateStatus === 'online';
         if (gateActive) {
           change += ANTIMATTER_INTAKE_RATE;
         }
 
-        // Stabilization consumes energy only when actively stabilized
+        // Stabilization constantly drains energy: -0.1/tick = -2%/sec
         if (stabilized) {
-          change -= 0.2;
+          change -= STABILIZE_DRAIN;
         }
 
-        // Transit puts additional stress
+        // Transit adds extra continuous drain: -0.15/tick = -3%/sec on top
         if (transitActive) {
-          change -= 0.08;
+          change -= 0.15;
         }
+
+        // Net rates:
+        //   Injection only:  +2.4%/sec  (energy climbs)
+        //   Online idle:     +0.4%/sec  (barely positive -- intake just covers drain)
+        //   Online transit:  -2.6%/sec  (actively dropping during transport)
 
         const newLevel = Math.max(0, Math.min(100, tank + change));
 
-        // If energy depleted while stabilized, shut everything down
+        // If energy fully depleted, shut everything down
         if (newLevel <= 0 && stabilized) {
           setStabilized(false);
           setGateStatus('offline');
@@ -145,8 +159,18 @@ function App() {
     // Calculate travel energy from PDF formula: E_total = TE_km * D
     const travelEnergy = calculateTravelEnergy(pathResult.distanceKm);
 
+    // Upfront energy cost: convert MJ to bar percentage
+    // E_total (MJ) / GATE_CAPACITY (MJ) * 100 = percentage of bar
+    const costPercent = (travelEnergy.energyMJ / GATE_ENERGY_CAPACITY_MJ) * 100;
+
+    // Check if there is enough energy for this trip
+    if (energyLevel < costPercent) return;
+
+    // Deduct energy immediately
+    setEnergyLevel(prev => Math.max(0, prev - costPercent));
+
     setLastPathResult(pathResult);
-    setLastTravelEnergy(travelEnergy);
+    setLastTravelEnergy({ ...travelEnergy, costPercent });
     setActivePath(pathResult.path);
     setNodeStates(prev => applyTraversalLoad(pathResult.path, prev));
 

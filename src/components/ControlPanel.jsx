@@ -130,6 +130,14 @@ const ControlPanel = ({
             <span className="cp-te-label">Efficiency (CEE)</span>
             <span className="cp-te-value">{lastTravelEnergy.cee.toFixed(5)}</span>
           </div>
+          {lastTravelEnergy.costPercent != null && (
+            <div className="cp-te-row cp-te-cost">
+              <span className="cp-te-label">Energy Cost</span>
+              <span className="cp-te-value" style={{ color: '#ff8844' }}>
+                -{lastTravelEnergy.costPercent.toFixed(1)}%
+              </span>
+            </div>
+          )}
         </div>
       )}
 
