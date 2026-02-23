@@ -39,7 +39,6 @@ body {
   position: relative;
 }
 
-/* ---- Title Bar ---- */
 .app-title-bar {
   position: absolute;
   top: 16px;
@@ -89,7 +88,7 @@ h1 {
   box-shadow: 0 0 10px rgba(68, 136, 204, 0.3);
 }
 
-/* ---- Info Modal ---- */
+/* modal part */
 .info-overlay {
   position: fixed;
   inset: 0;
@@ -165,7 +164,6 @@ h1 {
   color: #ff6666;
 }
 
-/* Tabs */
 .info-tabs {
   display: flex;
   gap: 2px;
@@ -347,7 +345,6 @@ h1 {
   .info-footer p { font-size: 0.58rem; }
 }
 
-/* ---- Wormhole Container: ALWAYS HORIZONTAL ---- */
 .wormhole-container {
   display: flex;
   flex-direction: row;
@@ -381,7 +378,6 @@ h1 {
   white-space: nowrap;
 }
 
-/* ---- Tunnel connector between wormholes ---- */
 .wormhole-tunnel {
   display: flex;
   align-items: center;
@@ -476,7 +472,6 @@ h1 {
   color: #fff;
 }
 
-/* Energy */
 .cp-energy-section {
   display: flex;
   flex-direction: column;
@@ -511,7 +506,6 @@ h1 {
   transition: width 0.15s linear;
 }
 
-/* Action Buttons */
 .cp-actions {
   display: flex;
   gap: 6px;
@@ -584,7 +578,6 @@ h1 {
   font-size: 0.65rem;
 }
 
-/* Travel Energy readout */
 .cp-travel-energy {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -615,7 +608,6 @@ h1 {
   font-weight: 700;
 }
 
-/* Expanded Section */
 .cp-expanded {
   display: flex;
   flex-direction: column;
