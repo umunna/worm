@@ -305,6 +305,5 @@ src/
     NodeMap.jsx            Canvas network topology visualisation
     Probe.jsx              Animated probe element
     StarField.jsx          Background star particle system
-    Gate.jsx               Legacy wrapper (unused)
 documentation.md           This file
 ```
