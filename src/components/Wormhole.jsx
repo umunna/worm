@@ -63,9 +63,6 @@ const Wormhole = ({ constriction = 0, isCollapsed, phase = 'offline', side = 'en
         return;
       }
 
-      // --- INJECTING: antimatter particles streaming inward ---
-      // Antimatter is invisible. We show it as near-black dark distortions
-      // with faint dark indigo shimmer -- you see where space bends, not the matter itself.
       if (phase === 'injecting') {
         // Subtle dark center void that pulses and grows
         const pulseAlpha = 0.06 + Math.sin(t * 3) * 0.03;
@@ -77,7 +74,6 @@ const Wormhole = ({ constriction = 0, isCollapsed, phase = 'offline', side = 'en
         ctx.fillStyle = centerGrad;
         ctx.fillRect(0, 0, SIZE, SIZE);
 
-        // Dark antimatter distortion particles -- near-invisible, just bending light
         const particleCount = 32;
         for (let i = 0; i < particleCount; i++) {
           const baseAngle = (i / particleCount) * Math.PI * 2;
