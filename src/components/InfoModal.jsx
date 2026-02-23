@@ -168,7 +168,6 @@ export default function InfoModal({ isOpen, onClose }) {
   const contentRef = useRef(null);
   const [activeTab, setActiveTab] = useState(0);
 
-  // Close on Escape key
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -176,12 +175,10 @@ export default function InfoModal({ isOpen, onClose }) {
     return () => window.removeEventListener('keydown', handleKey);
   }, [isOpen, onClose]);
 
-  // Close on overlay click
   const handleOverlayClick = (e) => {
     if (e.target === overlayRef.current) onClose();
   };
 
-  // Scroll content to top when tab changes
   useEffect(() => {
     if (contentRef.current) contentRef.current.scrollTop = 0;
   }, [activeTab]);
